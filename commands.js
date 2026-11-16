@@ -1,114 +1,104 @@
 
-const {
-  SlashCommandBuilder,
-  PermissionFlagsBits
-} = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName("help")
-    .setDescription("عرض قائمة أوامر DRO BOT"),
+const commandList = [
+  // التذاكر
+  ["ticket", "إنشاء لوحة التذاكر وإعدادها"],
+  ["ticket-setup", "إعداد نظام التذاكر"],
+  ["ticket-panel", "نشر لوحة التذاكر"],
+  ["ticket-close", "إغلاق التذكرة"],
+  ["ticket-open", "إعادة فتح التذكرة"],
+  ["ticket-claim", "استلام التذكرة"],
+  ["ticket-delete", "حذف التذكرة"],
+  ["ticket-add", "إضافة عضو للتذكرة"],
+  ["ticket-remove", "إزالة عضو من التذكرة"],
+  ["ticket-settings", "تعديل إعدادات التذاكر"],
 
-  new SlashCommandBuilder()
-    .setName("kick")
-    .setDescription("طرد عضو من السيرفر")
-    .addUserOption(option =>
-      option.setName("member")
-        .setDescription("العضو المطلوب طرده")
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName("reason")
-        .setDescription("سبب الطرد")
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
+  // التقديم
+  ["apply", "إعداد نظام التقديم"],
+  ["apply-panel", "نشر لوحة التقديم"],
+  ["apply-question", "إضافة سؤال للتقديم"],
+  ["apply-edit", "تعديل سؤال"],
+  ["apply-delete", "حذف سؤال"],
+  ["apply-order", "ترتيب الأسئلة"],
+  ["apply-type", "تحديد نوع الإجابة"],
+  ["apply-review", "إعداد رتبة المراجعة"],
+  ["apply-accept", "قبول طلب التقديم"],
+  ["apply-reject", "رفض طلب التقديم"],
+  ["apply-settings", "تعديل إعدادات التقديم"],
 
-  new SlashCommandBuilder()
-    .setName("ban")
-    .setDescription("حظر عضو من السيرفر")
-    .addUserOption(option =>
-      option.setName("member")
-        .setDescription("العضو المطلوب حظره")
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName("reason")
-        .setDescription("سبب الحظر")
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+  // القوانين
+  ["laws", "إعداد نظام القوانين"],
+  ["law-add", "إضافة قانون"],
+  ["law-edit", "تعديل قانون"],
+  ["law-delete", "حذف قانون"],
+  ["law-publish", "نشر القوانين"],
+  ["law-settings", "إعدادات القوانين"],
 
-  new SlashCommandBuilder()
-    .setName("unban")
-    .setDescription("فك حظر عضو")
-    .addStringOption(option =>
-      option.setName("userid")
-        .setDescription("ID العضو")
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+  // اللوقات
+  ["logs", "إعداد نظام اللوقات"],
+  ["logs-setup", "إنشاء إعدادات اللوقات"],
+  ["logs-channel", "تحديد روم اللوقات"],
+  ["logs-category", "تحديد كاتقوري اللوقات"],
+  ["logs-edit", "تعديل إعدادات اللوقات"],
+  ["logs-delete", "حذف إعدادات اللوقات"],
 
-  new SlashCommandBuilder()
-    .setName("timeout")
-    .setDescription("إسكات عضو")
-    .addUserOption(option =>
-      option.setName("member")
-        .setDescription("العضو")
-        .setRequired(true)
-    )
-    .addIntegerOption(option =>
-      option.setName("minutes")
-        .setDescription("مدة الإسكات بالدقائق")
-        .setMinValue(1)
-        .setMaxValue(40320)
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+  // الحماية
+  ["protection", "لوحة التحكم بالحماية"],
+  ["anti-spam", "منع التكرار والإزعاج"],
+  ["anti-link", "منع الروابط"],
+  ["anti-raid", "منع الهجمات الجماعية"],
+  ["anti-mention", "منع المنشن المزعج"],
+  ["anti-bot", "التحكم في دخول البوتات"],
+  ["protection-status", "عرض حالة الحماية"],
 
-  new SlashCommandBuilder()
-    .setName("clear")
-    .setDescription("مسح الرسائل")
-    .addIntegerOption(option =>
-      option.setName("amount")
-        .setDescription("عدد الرسائل")
-        .setMinValue(1)
-        .setMaxValue(100)
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+  // الرسائل الخاصة
+  ["dm", "إعداد الرسائل الخاصة"],
+  ["dm-role", "تحديد الرتبة المستهدفة"],
+  ["dm-title", "تحديد عنوان الرسالة"],
+  ["dm-message", "تحديد محتوى الرسالة"],
+  ["dm-send", "إرسال رسالة لأعضاء الرتبة"],
 
-  new SlashCommandBuilder()
-    .setName("lock")
-    .setDescription("قفل الروم")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  // الإدارة
+  ["kick", "طرد عضو"],
+  ["ban", "حظر عضو"],
+  ["unban", "فك حظر عضو"],
+  ["timeout", "إسكات عضو"],
+  ["untimeout", "فك إسكات عضو"],
+  ["warn", "تحذير عضو"],
+  ["warnings", "عرض تحذيرات عضو"],
+  ["clear", "مسح الرسائل"],
+  ["role-add", "إعطاء رتبة"],
+  ["role-remove", "إزالة رتبة"],
+  ["nickname", "تغيير لقب عضو"],
+  ["lock", "قفل روم"],
+  ["unlock", "فتح روم"],
+  ["channel-create", "إنشاء روم"],
+  ["channel-delete", "حذف روم"],
+  ["pin", "تثبيت رسالة"],
+  ["unpin", "إلغاء تثبيت رسالة"],
 
-  new SlashCommandBuilder()
-    .setName("unlock")
-    .setDescription("فتح الروم")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  // الاختصارات
+  ["shortcut-add", "إضافة اختصار جديد"],
+  ["shortcut-edit", "تعديل اختصار"],
+  ["shortcut-delete", "حذف اختصار"],
+  ["shortcut-list", "عرض الاختصارات"],
+  ["shortcut-permission", "تحديد صلاحية الاختصار"],
+  ["shortcut-channel", "تحديد الرومات المسموح بها"],
 
-  new SlashCommandBuilder()
-    .setName("ticket")
-    .setDescription("نشر لوحة التذاكر")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
-    .setName("logs")
-    .setDescription("إعداد اللوقات")
-    .addChannelOption(option =>
-      option.setName("channel")
-        .setDescription("روم استقبال اللوقات")
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
-    .setName("laws")
-    .setDescription("نشر قوانين السيرفر")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
-    .setName("apply")
-    .setDescription("بدء التقديم")
+  // أوامر عامة
+  ["help", "عرض قائمة أوامر البوت"],
+  ["setup", "إعداد البوت"],
+  ["settings", "إعدادات البوت"],
+  ["server-info", "معلومات السيرفر"],
+  ["user-info", "معلومات عضو"],
+  ["bot-info", "معلومات البوت"]
 ];
 
-module.exports = commands.map(command => command.toJSON());
+const commands = commandList.map(([name, description]) =>
+  new SlashCommandBuilder()
+    .setName(name)
+    .setDescription(description)
+);
+
+module.exports = commands;
