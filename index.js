@@ -1,4 +1,4 @@
-
+const { handleInteraction } = require("./handlers");
 const {
   Client,
   GatewayIntentBits,
@@ -358,5 +358,9 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
     log(guild, `${member.user.tag} انتقل من ${oldState.channel.name} إلى ${newState.channel.name}`);
   }
 });
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isChatInputCommand()) return;
 
+  await handleInteraction(interaction);
+});
 client.login(TOKEN);
