@@ -1,13 +1,28 @@
 
 const {
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   PermissionsBitField
 } = require("discord.js");
 
-const { getGuild, saveDatabase, loadDatabase } = require("./database");
+const {
+  getGuild,
+  loadDatabase,
+  saveDatabase
+} = require("./database");
+
+function isAdmin(member) {
+  return member.permissions.has(
+    PermissionsBitField.Flags.Administrator
+  );
+}
+
+function saveGuild(guildId, callback) {
+  getGuild(guildId);
+
+  const database = loadDatabase();
+  callback(database.guilds[guildId]);
+  saveDatabase(database);
+}
 
 async function handleInteraction(interaction) {
   if (!interaction.isChatInputCommand()) return false;
@@ -21,16 +36,15 @@ async function handleInteraction(interaction) {
   }
 
   const command = interaction.commandName;
-  const member = interaction.member;
   const guild = interaction.guild;
+  const member = interaction.member;
 
   try {
     if (command === "help") {
-      const embed = new EmbedBuilder()
+      const panel = new EmbedBuilder()
         .setColor("#9b65ff")
         .setTitle("DRO BOT | قائمة الأوامر")
         .setDescription(
-          "`/help` المساعدة\n" +
           "`/kick` طرد عضو\n" +
           "`/ban` حظر عضو\n" +
           "`/unban` فك الحظر\n" +
@@ -38,40 +52,44 @@ async function handleInteraction(interaction) {
           "`/clear` مسح الرسائل\n" +
           "`/lock` قفل الروم\n" +
           "`/unlock` فتح الروم\n" +
-          "`/ticket` نشر لوحة التذاكر\n" +
           "`/logs` إعداد اللوقات\n" +
           "`/laws` نشر القوانين\n" +
-          "`/apply` التقديم"
+          "`/law-add` إضافة قانون\n" +
+          "`/law-edit` تعديل قانون\n" +
+          "`/law-delete` حذف قانون\n" +
+          "`/law-publish` نشر القوانين"
         );
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({
+        embeds: [panel],
+        ephemeral: true
+      });
       return true;
     }
 
     if (command === "kick") {
-      const target = await guild.members.fetch(
-        interaction.options.getUser("member").id
-      );
-      const reason = interaction.options.getString("reason") || "بدون سبب";
-
       if (!member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
         await interaction.reply({ content: "ما عندك صلاحية الطرد.", ephemeral: true });
         return true;
       }
 
+      const user = interaction.options.getUser("member");
+      const reason = interaction.options.getString("reason") || "بدون سبب";
+      const target = await guild.members.fetch(user.id);
+
       await target.kick(reason);
-      await interaction.reply(`تم طرد ${target.user.tag}.`);
+      await interaction.reply(`تم طرد ${user.tag}.`);
       return true;
     }
 
     if (command === "ban") {
-      const user = interaction.options.getUser("member");
-      const reason = interaction.options.getString("reason") || "بدون سبب";
-
       if (!member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
         await interaction.reply({ content: "ما عندك صلاحية الحظر.", ephemeral: true });
         return true;
       }
+
+      const user = interaction.options.getUser("member");
+      const reason = interaction.options.getString("reason") || "بدون سبب";
 
       await guild.members.ban(user.id, { reason });
       await interaction.reply(`تم حظر ${user.tag}.`);
@@ -91,16 +109,17 @@ async function handleInteraction(interaction) {
     }
 
     if (command === "timeout") {
-      const user = interaction.options.getUser("member");
-      const minutes = interaction.options.getInteger("minutes");
-
       if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
         await interaction.reply({ content: "ما عندك صلاحية الإسكات.", ephemeral: true });
         return true;
       }
 
+      const user = interaction.options.getUser("member");
+      const minutes = interaction.options.getInteger("minutes");
+      const reason = interaction.options.getString("reason") || "بدون سبب";
       const target = await guild.members.fetch(user.id);
-      await target.timeout(minutes * 60 * 1000);
+
+      await target.timeout(minutes * 60000, reason);
       await interaction.reply(`تم إسكات ${user.tag} لمدة ${minutes} دقيقة.`);
       return true;
     }
@@ -129,7 +148,9 @@ async function handleInteraction(interaction) {
 
       await interaction.channel.permissionOverwrites.edit(
         guild.roles.everyone,
-        { SendMessages: command === "lock" ? false : null }
+        {
+          SendMessages: command === "lock" ? false : null
+        }
       );
 
       await interaction.reply(
@@ -138,59 +159,45 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    if (command === "logs") {
-      if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    if (command === "logs" || command === "logs-channel") {
+      if (!isAdmin(member)) {
         await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
         return true;
       }
 
       const channel = interaction.options.getChannel("channel");
-      const database = loadDatabase();
 
-      if (!database.guilds[guild.id]) getGuild(guild.id);
+      if (!channel) {
+        await interaction.reply({ content: "حدد روم اللوقات أولاً.", ephemeral: true });
+        return true;
+      }
 
-      const data = loadDatabase();
-      data.guilds[guild.id].logs.channelId = channel.id;
-      data.guilds[guild.id].logs.enabled = true;
-      saveDatabase(data);
+      saveGuild(guild.id, data => {
+        data.logs.channelId = channel.id;
+        data.logs.enabled = true;
+      });
 
       await interaction.reply(`تم تحديد ${channel} رومًا للوقات.`);
       return true;
     }
 
-    if (command === "ticket") {
-      if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    if (command === "logs-delete") {
+      if (!isAdmin(member)) {
         await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
         return true;
       }
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("dro_ticket_open")
-          .setLabel("فتح تذكرة")
-          .setEmoji("🎫")
-          .setStyle(ButtonStyle.Primary)
-      );
-
-      const panel = new EmbedBuilder()
-        .setColor("#9b65ff")
-        .setTitle("🎫 الدعم الفني")
-        .setDescription("اضغط الزر بالأسفل لفتح تذكرة مع فريق الدعم.");
-
-      await interaction.channel.send({
-        embeds: [panel],
-        components: [row]
+      saveGuild(guild.id, data => {
+        data.logs.channelId = null;
+        data.logs.enabled = false;
       });
 
-      await interaction.reply({
-        content: "تم نشر لوحة التذاكر.",
-        ephemeral: true
-      });
+      await interaction.reply("تم إيقاف إعدادات اللوقات.");
       return true;
     }
 
-    if (command === "laws") {
-      if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    if (command === "laws" || command === "law-publish") {
+      if (!isAdmin(member)) {
         await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
         return true;
       }
@@ -206,39 +213,100 @@ async function handleInteraction(interaction) {
         return true;
       }
 
-      const panel = new EmbedBuilder()
-        .setColor("#9b65ff")
-        .setTitle(data.laws.title || "📜 قوانين السيرفر")
-        .setDescription(list.map((law, index) => `${index + 1}. ${law}`).join("\n"));
-
-      const channel = data.laws.channelId
-        ? guild.channels.cache.get(data.laws.channelId)
-        : interaction.channel;
+      const channel = interaction.options.getChannel("channel") ||
+        (data.laws.channelId
+          ? guild.channels.cache.get(data.laws.channelId)
+          : interaction.channel);
 
       if (!channel) {
         await interaction.reply({
-          content: "روم القوانين غير موجود. حدد رومًا صحيحًا.",
+          content: "حدد رومًا صحيحًا للقوانين.",
           ephemeral: true
         });
         return true;
       }
+
+      const panel = new EmbedBuilder()
+        .setColor("#9b65ff")
+        .setTitle(data.laws.title || "📜 قوانين السيرفر")
+        .setDescription(
+          list.map((law, index) => `${index + 1}. ${law}`).join("\n")
+        );
 
       await channel.send({ embeds: [panel] });
       await interaction.reply({ content: "تم نشر القوانين.", ephemeral: true });
       return true;
     }
 
-    if (command === "apply") {
-      await interaction.reply({
-        content: "نظام التقديم يحتاج إعداد أسئلة وروم استقبال الطلبات أولاً.",
-        ephemeral: true
+    if (command === "law-add") {
+      if (!isAdmin(member)) {
+        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        return true;
+      }
+
+      const law = interaction.options.getString("law");
+
+      saveGuild(guild.id, data => {
+        data.laws.items.push(law);
       });
+
+      await interaction.reply("تمت إضافة القانون بنجاح.");
       return true;
     }
 
-    return false;
+    if (command === "law-edit") {
+      if (!isAdmin(member)) {
+        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        return true;
+      }
+
+      const number = interaction.options.getInteger("number");
+      const law = interaction.options.getString("law");
+      let updated = false;
+
+      saveGuild(guild.id, data => {
+        if (data.laws.items[number - 1] !== undefined) {
+          data.laws.items[number - 1] = law;
+          updated = true;
+        }
+      });
+
+      await interaction.reply(
+        updated ? "تم تعديل القانون." : "رقم القانون غير موجود."
+      );
+      return true;
+    }
+
+    if (command === "law-delete") {
+      if (!isAdmin(member)) {
+        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        return true;
+      }
+
+      const number = interaction.options.getInteger("number");
+      let deleted = false;
+
+      saveGuild(guild.id, data => {
+        if (data.laws.items[number - 1] !== undefined) {
+          data.laws.items.splice(number - 1, 1);
+          deleted = true;
+        }
+      });
+
+      await interaction.reply(
+        deleted ? "تم حذف القانون." : "رقم القانون غير موجود."
+      );
+      return true;
+    }
+
+    await interaction.reply({
+      content: "هذا الأمر لم تتم برمجته بعد. بنضيفه في المراحل القادمة.",
+      ephemeral: true
+    });
+    return true;
+
   } catch (error) {
-    console.error("DRO BOT command error:", error);
+    console.error("DRO BOT error:", error);
 
     const response = {
       content: "حدث خطأ أثناء تنفيذ الأمر. تأكد من صلاحيات البوت ورتبه.",
