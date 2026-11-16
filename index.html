@@ -1,1 +1,106 @@
 
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRO BOT | لوحة التحكم</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090b12;color:#fff;font-family:Arial,sans-serif}
+header{height:75px;padding:0 7%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #25283a;background:#0e111b}
+.logo{font-size:25px;font-weight:bold;color:#987cff}
+button{border:0;border-radius:10px;padding:13px 19px;background:#7959ff;color:white;font-weight:bold;cursor:pointer}
+.hero{text-align:center;padding:75px 20px}
+.hero h1{font-size:45px;margin:10px}
+.hero h1 span{color:#987cff}
+.hero p{color:#aaaebf;line-height:2}
+.container{max-width:1100px;margin:auto;padding:20px}
+.heading{margin:35px 0 20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.card{background:#141927;border:1px solid #282e42;border-radius:16px;padding:24px;transition:.2s}
+.card:hover{border-color:#7959ff;transform:translateY(-3px)}
+.card h3{margin-top:0}
+.card p{color:#a8adbd;line-height:1.8;min-height:55px}
+.card button{width:100%;margin-top:10px}
+.status{color:#a58dff;font-size:13px}
+footer{text-align:center;padding:35px;color:#777;margin-top:50px;border-top:1px solid #25283a}
+</style>
+</head>
+<body>
+
+<header>
+<div class="logo">DRO BOT</div>
+<button onclick="addBot()">إضافة البوت</button>
+</header>
+
+<div class="hero">
+<h1>مرحباً بك في <span>DRO BOT</span></h1>
+<p>لوحة تحكم احترافية لإدارة سيرفر الديسكورد الخاص بك.<br>
+تحكم بالحماية والتذاكر والرتب وجميع أنظمة البوت.</p>
+<button onclick="addBot()">إضافة البوت إلى سيرفرك</button>
+</div>
+
+<div class="container">
+<h2 class="heading">⚙️ لوحة الأنظمة</h2>
+<div class="cards">
+
+<div class="card">
+<h3>🎫 الدعم الفني</h3>
+<p>إنشاء التذاكر وإعداد رسائلها وتحديد روم نشر التذاكر.</p>
+<span class="status">إعدادات الدعم الفني</span>
+<button onclick="show('الدعم الفني')">فتح الإعدادات</button>
+</div>
+
+<div class="card">
+<h3>🛡️ الحماية</h3>
+<p>التحكم بمنع التكرار والروابط والمنشن الجماعي والحماية من التخريب.</p>
+<span class="status">تحكم مستقل لكل حماية</span>
+<button onclick="show('الحماية')">فتح الإعدادات</button>
+</div>
+
+<div class="card">
+<h3>👑 إدارة الرتب</h3>
+<p>إعطاء الرتب وإزالتها وإدارة صلاحيات الأعضاء.</p>
+<span class="status">إعدادات الرتب</span>
+<button onclick="show('إدارة الرتب')">فتح الإعدادات</button>
+</div>
+
+<div class="card">
+<h3>📋 السجلات</h3>
+<p>متابعة الأحداث والتغييرات التي تحدث داخل السيرفر.</p>
+<span class="status">سجلات السيرفر</span>
+<button onclick="show('السجلات')">فتح الإعدادات</button>
+</div>
+
+<div class="card">
+<h3>🔨 الإدارة</h3>
+<p>أوامر الحظر والطرد والتحذير وإدارة الأعضاء.</p>
+<span class="status">أدوات الإدارة</span>
+<button onclick="show('الإدارة')">فتح الإعدادات</button>
+</div>
+
+<div class="card">
+<h3>⚙️ الإعدادات العامة</h3>
+<p>إعدادات البوت العامة والتحكم بتفضيلات السيرفر.</p>
+<span class="status">الإعدادات العامة</span>
+<button onclick="show('الإعدادات العامة')">فتح الإعدادات</button>
+</div>
+
+</div>
+</div>
+
+<footer>
+DRO BOT © 2026 | جميع الحقوق محفوظة
+</footer>
+
+<script>
+function addBot(){
+location.href="https://discord.com/oauth2/authorize?client_id=1564613448682176613";
+}
+function show(name){
+alert("قسم "+name+" قيد الربط بالنظام.");
+}
+</script>
+</body>
+</html>
