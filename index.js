@@ -1,4 +1,4 @@
-const { handleInteraction } = require("./handlers");
+
 const {
   Client,
   GatewayIntentBits,
@@ -12,49 +12,40 @@ const {
   Events
 } = require("discord.js");
 
+const { handleInteraction } = require("./handlers");
+const {
+  getGuild,
+  loadDatabase,
+  saveDatabase
+} = require("./database");
+
+const TOKEN = process.env.DISCORD_TOKEN;
+
+if (!TOKEN) {
+  throw new Error("لم يتم ضبط DISCORD_TOKEN في إعدادات الاستضافة.");
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates
   ],
-  partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
+  partials: [
+    Partials.Message,
+    Partials.Channel,
+    Partials.GuildMember
+  ]
 });
 
-const PREFIX = "!";
-const TOKEN = process.env.DISCORD_TOKEN;
-
-const settings = new Map();
-const tickets = new Map();
-const applications = new Map();
-const laws = new Map();
-const shortcuts = new Map();
-
-function getSettings(guildId) {
-  if (!settings.has(guildId)) {
-    settings.set(guildId, {
-      logChannel: null,
-      ticketCategory: null,
-      ticketPanel: null,
-      supportRole: null,
-      applicationChannel: null,
-      applicationReview: null,
-      acceptedRole: null,
-      lawChannel: null,
-      questions: [],
-      logs: true
-    });
-  }
-  return settings.get(guildId);
-}
-
 function isAdmin(member) {
-  return member.permissions.has(PermissionsBitField.Flags.Administrator);
+  return member.permissions.has(
+    PermissionsBitField.Flags.Administrator
+  );
 }
 
-function embed(title, description) {
+function makeEmbed(title, description) {
   return new EmbedBuilder()
     .setColor("#9b65ff")
     .setTitle(title)
@@ -62,305 +53,299 @@ function embed(title, description) {
     .setTimestamp();
 }
 
-async function log(guild, message) {
-  const s = getSettings(guild.id);
-  if (!s.logs || !s.logChannel) return;
-  const channel = guild.channels.cache.get(s.logChannel);
-  if (channel) channel.send({ embeds: [embed("📋 سجل السيرفر", message)] }).catch(() => {});
+function saveGuild(guildId, callback) {
+  getGuild(guildId);
+
+  const database = loadDatabase();
+  callback(database.guilds[guildId]);
+  saveDatabase(database);
+}
+
+async function log(guild, description) {
+  try {
+    const data = getGuild(guild.id);
+
+    if (!data.logs.enabled || !data.logs.channelId) return;
+
+    const channel = guild.channels.cache.get(data.logs.channelId);
+
+    if (channel && channel.isTextBased()) {
+      await channel.send({
+        embeds: [
+          makeEmbed("📋 سجل السيرفر", description)
+        ]
+      });
+    }
+  } catch (error) {
+    console.error("Log error:", error);
+  }
 }
 
 client.once(Events.ClientReady, () => {
   console.log(`DRO BOT is online: ${client.user.tag}`);
-  client.user.setActivity("DRO BOT | !help");
+  client.user.setActivity("DRO BOT | الدعم الفني");
 });
 
-client.on(Events.MessageCreate, async message => {
-  if (!message.guild || message.author.bot) return;
-
-  const s = getSettings(message.guild.id);
-  const args = message.content.trim().split(/\s+/);
-  const command = args.shift()?.toLowerCase();
-
-  if (shortcuts.has(message.guild.id + ":" + command)) {
-    const original = shortcuts.get(message.guild.id + ":" + command);
-    args.unshift(original);
-  }
-
-  if (!command.startsWith(PREFIX)) {
-    const shortcut = shortcuts.get(message.guild.id + ":" + command);
-    if (!shortcut) return;
-  }
-
-  const action = command.startsWith(PREFIX)
-    ? command.slice(PREFIX.length)
-    : shortcuts.get(message.guild.id + ":" + command);
-
-  const target = message.mentions.members.first();
-  const reason = args.slice(1).join(" ") || "بدون سبب";
-
-  if (action === "help") {
-    return message.reply({ embeds: [embed("DRO BOT | الأوامر",
-      "`!kick @عضو` طرد\n" +
-      "`!ban @عضو` حظر\n" +
-      "`!unban ID` فك الحظر\n" +
-      "`!timeout @عضو مدة` إسكات\n" +
-      "`!warn @عضو` تحذير\n" +
-      "`!clear عدد` مسح رسائل\n" +
-      "`!lock` قفل الروم\n" +
-      "`!unlock` فتح الروم\n" +
-      "`!log روم` تحديد اللوق\n" +
-      "`!ticket` نشر لوحة التذاكر\n" +
-      "`!ticketcategory ID` تحديد كاتقوري التذاكر\n" +
-      "`!supportrole ID` رتبة الدعم\n" +
-      "`!applychannel روم` روم التقديم\n" +
-      "`!addquestion السؤال` إضافة سؤال\n" +
-      "`!reviewrole ID` رتبة مراجعة التقديم\n" +
-      "`!acceptrole ID` رتبة القبول\n" +
-      "`!lawchannel روم` روم القوانين\n" +
-      "`!addlaw نص` إضافة قانون\n" +
-      "`!publishlaws` نشر القوانين\n" +
-      "`!shortcut اختصار أمر` إضافة اختصار\n" +
-      "`!logs on/off` تشغيل وإيقاف اللوقات"
-    )] });
-  }
-
-  if (action === "kick" && isAdmin(message.member)) {
-    if (!target) return message.reply("حدد العضو.");
-    await target.kick(reason);
-    await message.reply(`تم طرد ${target.user.tag}`);
-    return log(message.guild, `طرد ${target.user.tag} بواسطة ${message.author.tag}`);
-  }
-
-  if (action === "ban" && isAdmin(message.member)) {
-    if (!target) return message.reply("حدد العضو.");
-    await target.ban({ reason });
-    await message.reply(`تم حظر ${target.user.tag}`);
-    return log(message.guild, `حظر ${target.user.tag} بواسطة ${message.author.tag}`);
-  }
-
-  if (action === "unban" && isAdmin(message.member)) {
-    const id = args[0];
-    if (!id) return message.reply("اكتب ID العضو.");
-    await message.guild.members.unban(id, reason);
-    return message.reply("تم فك الحظر.");
-  }
-
-  if (action === "timeout" && isAdmin(message.member)) {
-    if (!target) return message.reply("حدد العضو.");
-    const minutes = Number(args[1]) || 10;
-    await target.timeout(minutes * 60000, reason);
-    return message.reply(`تم إسكات ${target.user.tag}`);
-  }
-
-  if (action === "warn" && isAdmin(message.member)) {
-    if (!target) return message.reply("حدد العضو.");
-    await target.send(`⚠️ تم تحذيرك في ${message.guild.name}\nالسبب: ${reason}`).catch(() => {});
-    return message.reply(`تم تحذير ${target.user.tag}`);
-  }
-
-  if (action === "clear" && isAdmin(message.member)) {
-    const count = Math.min(Number(args[0]) || 10, 100);
-    const deleted = await message.channel.bulkDelete(count, true);
-    return message.channel.send(`تم مسح ${deleted.size} رسالة.`).then(m => {
-      setTimeout(() => m.delete().catch(() => {}), 5000);
+// نشر لوحة التذاكر
+async function publishTicketPanel(interaction) {
+  if (!isAdmin(interaction.member)) {
+    await interaction.reply({
+      content: "هذا الأمر للإدارة فقط.",
+      ephemeral: true
     });
+    return;
   }
 
-  if (action === "lock" && isAdmin(message.member)) {
-    await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: false
+  const channel =
+    interaction.options.getChannel("channel") ||
+    interaction.channel;
+
+  const title = interaction.options.getString("title");
+  const description = interaction.options.getString("description");
+  const support = interaction.options.getRole("support");
+
+  if (!channel || channel.type !== ChannelType.GuildText) {
+    await interaction.reply({
+      content: "حدد رومًا نصيًا صالحًا.",
+      ephemeral: true
     });
-    return message.channel.send("🔒 تم قفل الروم.");
+    return;
   }
 
-  if (action === "unlock" && isAdmin(message.member)) {
-    await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: null
-    });
-    return message.channel.send("🔓 تم فتح الروم.");
-  }
+  saveGuild(interaction.guild.id, data => {
+    data.tickets.panelChannelId = channel.id;
 
-  if (action === "log" && isAdmin(message.member)) {
-    const channel = message.mentions.channels.first();
-    if (!channel) return message.reply("حدد روم اللوقات.");
-    s.logChannel = channel.id;
-    return message.reply("تم تحديد روم اللوقات.");
-  }
-
-  if (action === "logs" && isAdmin(message.member)) {
-    s.logs = args[0] === "on";
-    return message.reply(s.logs ? "تم تشغيل اللوقات." : "تم إيقاف اللوقات.");
-  }
-
-  if (action === "ticketcategory" && isAdmin(message.member)) {
-    s.ticketCategory = args[0];
-    return message.reply("تم تحديد كاتقوري التذاكر.");
-  }
-
-  if (action === "supportrole" && isAdmin(message.member)) {
-    s.supportRole = args[0];
-    return message.reply("تم تحديد رتبة الدعم.");
-  }
-
-  if (action === "ticket" && isAdmin(message.member)) {
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("dro_ticket_open")
-        .setLabel("فتح تذكرة")
-        .setEmoji("🎫")
-        .setStyle(ButtonStyle.Primary)
-    );
-    return message.channel.send({
-      embeds: [embed("🎫 الدعم الفني", "اضغط الزر بالأسفل لفتح تذكرة مع فريق الدعم.")],
-      components: [row]
-    });
-  }
-
-  if (action === "applychannel" && isAdmin(message.member)) {
-    const channel = message.mentions.channels.first();
-    if (!channel) return message.reply("حدد روم التقديم.");
-    s.applicationChannel = channel.id;
-    return message.reply("تم تحديد روم التقديم.");
-  }
-
-  if (action === "addquestion" && isAdmin(message.member)) {
-    const question = args.join(" ");
-    if (!question) return message.reply("اكتب السؤال.");
-    s.questions.push(question);
-    return message.reply("تمت إضافة السؤال.");
-  }
-
-  if (action === "reviewrole" && isAdmin(message.member)) {
-    s.applicationReview = args[0];
-    return message.reply("تم تحديد رتبة مراجعة التقديم.");
-  }
-
-  if (action === "acceptrole" && isAdmin(message.member)) {
-    s.acceptedRole = args[0];
-    return message.reply("تم تحديد رتبة القبول.");
-  }
-
-  if (action === "apply" && s.applicationChannel) {
-    const channel = message.guild.channels.cache.get(s.applicationChannel);
-    if (!channel || !s.questions.length) {
-      return message.reply("نظام التقديم غير مكتمل.");
+    if (support) {
+      data.tickets.supportRoleId = support.id;
     }
-    const content = s.questions.map((q, i) => `${i + 1}. ${q}`).join("\n");
-    await channel.send({
-      embeds: [embed("📝 طلب تقديم جديد", `المتقدم: ${message.author}\n\n${content}`)]
-    });
-    return message.reply("تم إرسال طلب التقديم للمراجعة.");
-  }
+  });
 
-  if (action === "addlaw" && isAdmin(message.member)) {
-    const law = args.join(" ");
-    if (!law) return message.reply("اكتب القانون.");
-    if (!laws.has(message.guild.id)) laws.set(message.guild.id, []);
-    laws.get(message.guild.id).push(law);
-    return message.reply("تمت إضافة القانون.");
-  }
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("dro_ticket_open")
+      .setLabel("فتح تذكرة")
+      .setEmoji("🎫")
+      .setStyle(ButtonStyle.Primary)
+  );
 
-  if (action === "lawchannel" && isAdmin(message.member)) {
-    const channel = message.mentions.channels.first();
-    if (!channel) return message.reply("حدد روم القوانين.");
-    s.lawChannel = channel.id;
-    return message.reply("تم تحديد روم القوانين.");
-  }
+  await channel.send({
+    embeds: [
+      makeEmbed(title, description)
+    ],
+    components: [row]
+  });
 
-  if (action === "publishlaws" && isAdmin(message.member)) {
-    const channel = message.guild.channels.cache.get(s.lawChannel);
-    const list = laws.get(message.guild.id) || [];
-    if (!channel || !list.length) return message.reply("حدد روم القوانين وأضف القوانين أولاً.");
-    await channel.send({ embeds: [embed("📜 قوانين السيرفر", list.map((x, i) => `${i + 1}. ${x}`).join("\n"))] });
-    return message.reply("تم نشر القوانين.");
-  }
+  await interaction.reply({
+    content: `تم نشر لوحة التذاكر في ${channel}.`,
+    ephemeral: true
+  });
+}
 
-  if (action === "shortcut" && isAdmin(message.member)) {
-    const name = args[0]?.toLowerCase();
-    const cmd = args[1]?.toLowerCase();
-    if (!name || !cmd) return message.reply("مثال: !shortcut اذلف kick");
-    if (!["kick", "ban", "timeout", "clear", "lock", "unlock"].includes(cmd)) {
-      return message.reply("هذا الأمر غير مدعوم كاختصار.");
-    }
-    shortcuts.set(message.guild.id + ":" + name, cmd);
-    return message.reply(`تم إنشاء الاختصار ${name} للأمر ${cmd}.`);
-  }
-});
+// فتح تذكرة
+async function openTicket(interaction) {
+  const guild = interaction.guild;
+  const data = getGuild(guild.id);
 
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isButton() || !interaction.guild) return;
+  const database = loadDatabase();
+  const tickets = database.guilds[guild.id].tickets;
 
-  const s = getSettings(interaction.guild.id);
+  const existingId = tickets.openTickets[interaction.user.id];
 
-  if (interaction.customId === "dro_ticket_open") {
-    const existing = tickets.get(interaction.guild.id + ":" + interaction.user.id);
+  if (existingId) {
+    const existing = guild.channels.cache.get(existingId);
+
     if (existing) {
-      return interaction.reply({ content: "لديك تذكرة مفتوحة بالفعل.", ephemeral: true });
+      await interaction.reply({
+        content: `لديك تذكرة مفتوحة بالفعل: ${existing}`,
+        ephemeral: true
+      });
+      return;
     }
 
-    const channel = await interaction.guild.channels.create({
-      name: `ticket-${interaction.user.username}`.toLowerCase(),
-      type: ChannelType.GuildText,
-      parent: s.ticketCategory || undefined,
-      permissionOverwrites: [
-        { id: interaction.guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        ...(s.supportRole ? [{ id: s.supportRole, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }] : [])
+    delete tickets.openTickets[interaction.user.id];
+    saveDatabase(database);
+  }
+
+  const permissionOverwrites = [
+    {
+      id: guild.roles.everyone.id,
+      deny: [PermissionsBitField.Flags.ViewChannel]
+    },
+    {
+      id: interaction.user.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory
+      ]
+    }
+  ];
+
+  if (data.tickets.supportRoleId) {
+    permissionOverwrites.push({
+      id: data.tickets.supportRoleId,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory
       ]
     });
-
-    tickets.set(interaction.guild.id + ":" + interaction.user.id, channel.id);
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("dro_ticket_close").setLabel("إغلاق التذكرة").setStyle(ButtonStyle.Danger)
-    );
-
-    await channel.send({
-      content: `${interaction.user} أهلاً بك في الدعم الفني.`,
-      components: [row]
-    });
-
-    return interaction.reply({ content: `تم فتح تذكرتك: ${channel}`, ephemeral: true });
   }
 
-  if (interaction.customId === "dro_ticket_close") {
-    if (!isAdmin(interaction.member) &&
-        !(s.supportRole && interaction.member.roles.cache.has(s.supportRole))) {
-      return interaction.reply({ content: "ليس لديك صلاحية إغلاق التذكرة.", ephemeral: true });
-    }
-    tickets.forEach((channelId, key) => {
-      if (channelId === interaction.channel.id) tickets.delete(key);
+  const ticketChannel = await guild.channels.create({
+    name: `ticket-${interaction.user.username}`
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .slice(0, 90),
+    type: ChannelType.GuildText,
+    parent: data.tickets.categoryId || undefined,
+    permissionOverwrites
+  });
+
+  saveGuild(guild.id, serverData => {
+    serverData.tickets.openTickets[interaction.user.id] =
+      ticketChannel.id;
+  });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("dro_ticket_close")
+      .setLabel("إغلاق التذكرة")
+      .setEmoji("🔒")
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await ticketChannel.send({
+    content: `${interaction.user} أهلاً بك في الدعم الفني.`,
+    components: [row]
+  });
+
+  await interaction.reply({
+    content: `تم فتح تذكرتك: ${ticketChannel}`,
+    ephemeral: true
+  });
+
+  await log(guild, `تم فتح تذكرة بواسطة ${interaction.user.tag}`);
+}
+
+// إغلاق تذكرة
+async function closeTicket(interaction) {
+  const guild = interaction.guild;
+  const data = getGuild(guild.id);
+  const channelId = interaction.channel.id;
+
+  const database = loadDatabase();
+  const openTickets = database.guilds[guild.id].tickets.openTickets;
+
+  const ticketOwner = Object.entries(openTickets)
+    .find(([, id]) => id === channelId);
+
+  const isOwner = ticketOwner &&
+    ticketOwner[0] === interaction.user.id;
+
+  const isSupport = data.tickets.supportRoleId &&
+    interaction.member.roles.cache.has(data.tickets.supportRoleId);
+
+  if (!isAdmin(interaction.member) && !isSupport && !isOwner) {
+    await interaction.reply({
+      content: "ليس لديك صلاحية إغلاق هذه التذكرة.",
+      ephemeral: true
     });
-    await interaction.reply("سيتم إغلاق التذكرة.");
-    setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
+    return;
+  }
+
+  if (!ticketOwner) {
+    await interaction.reply({
+      content: "لم أجد صاحب هذه التذكرة في قاعدة البيانات.",
+      ephemeral: true
+    });
+    return;
+  }
+
+  delete openTickets[ticketOwner[0]];
+  saveDatabase(database);
+
+  await interaction.reply({
+    content: "🔒 سيتم حذف التذكرة خلال 5 ثوانٍ."
+  });
+
+  await log(guild, `تم إغلاق تذكرة بواسطة ${interaction.user.tag}`);
+
+  setTimeout(() => {
+    interaction.channel.delete().catch(console.error);
+  }, 5000);
+}
+
+// استقبال الأوامر والأزرار
+client.on(Events.InteractionCreate, async interaction => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "ticket") {
+        await publishTicketPanel(interaction);
+        return;
+      }
+
+      await handleInteraction(interaction);
+      return;
+    }
+
+    if (!interaction.isButton() || !interaction.guild) return;
+
+    if (interaction.customId === "dro_ticket_open") {
+      await openTicket(interaction);
+      return;
+    }
+
+    if (interaction.customId === "dro_ticket_close") {
+      await closeTicket(interaction);
+      return;
+    }
+  } catch (error) {
+    console.error("DRO BOT interaction error:", error);
+
+    const response = {
+      content: "حدث خطأ. تأكد من صلاحيات البوت وإعداداته.",
+      ephemeral: true
+    };
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(response).catch(() => {});
+    } else {
+      await interaction.reply(response).catch(() => {});
+    }
   }
 });
 
+// تسجيل إنشاء الرومات وحذفها
 client.on(Events.ChannelCreate, channel => {
-  if (channel.guild) log(channel.guild, `تم إنشاء روم: ${channel.name}`);
+  if (channel.guild) {
+    log(channel.guild, `تم إنشاء روم: ${channel.name}`);
+  }
 });
 
 client.on(Events.ChannelDelete, channel => {
-  if (channel.guild) log(channel.guild, `تم حذف روم: ${channel.name}`);
+  if (channel.guild) {
+    log(channel.guild, `تم حذف روم: ${channel.name}`);
+  }
 });
 
+// تسجيل دخول وخروج وانتقال الأعضاء في الصوتيات
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
   const guild = newState.guild;
-  if (!guild) return;
   const member = newState.member || oldState.member;
-  if (!member) return;
+
+  if (!guild || !member) return;
 
   if (!oldState.channelId && newState.channelId) {
     log(guild, `${member.user.tag} دخل الصوتية ${newState.channel.name}`);
   } else if (oldState.channelId && !newState.channelId) {
     log(guild, `${member.user.tag} خرج من الصوتية ${oldState.channel.name}`);
   } else if (oldState.channelId !== newState.channelId) {
-    log(guild, `${member.user.tag} انتقل من ${oldState.channel.name} إلى ${newState.channel.name}`);
+    log(
+      guild,
+      `${member.user.tag} انتقل من ${oldState.channel.name} إلى ${newState.channel.name}`
+    );
   }
 });
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
 
-  await handleInteraction(interaction);
-});
 client.login(TOKEN);
