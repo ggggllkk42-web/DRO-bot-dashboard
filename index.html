@@ -4,103 +4,138 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DRO BOT | لوحة التحكم</title>
+<title>DRO BOT | Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090b12;color:#fff;font-family:Arial,sans-serif}
-header{height:75px;padding:0 7%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #25283a;background:#0e111b}
-.logo{font-size:25px;font-weight:bold;color:#987cff}
-button{border:0;border-radius:10px;padding:13px 19px;background:#7959ff;color:white;font-weight:bold;cursor:pointer}
-.hero{text-align:center;padding:75px 20px}
-.hero h1{font-size:45px;margin:10px}
-.hero h1 span{color:#987cff}
-.hero p{color:#aaaebf;line-height:2}
-.container{max-width:1100px;margin:auto;padding:20px}
-.heading{margin:35px 0 20px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
-.card{background:#141927;border:1px solid #282e42;border-radius:16px;padding:24px;transition:.2s}
-.card:hover{border-color:#7959ff;transform:translateY(-3px)}
-.card h3{margin-top:0}
-.card p{color:#a8adbd;line-height:1.8;min-height:55px}
-.card button{width:100%;margin-top:10px}
-.status{color:#a58dff;font-size:13px}
-footer{text-align:center;padding:35px;color:#777;margin-top:50px;border-top:1px solid #25283a}
+body{margin:0;background:#090811;color:#f8f5ff;font-family:'Cairo',Arial,sans-serif}
+:root{--purple:#9b65ff;--light:#c5a5ff;--panel:#151222;--border:#302342}
+button,a{font-family:inherit;cursor:pointer}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:255px;background:#100d19;border-left:1px solid var(--border);padding:25px 17px;position:fixed;right:0;top:0;bottom:0;z-index:5}
+.logo{display:flex;align-items:center;gap:12px;padding:5px 10px 28px;border-bottom:1px solid var(--border)}
+.logo-icon{width:43px;height:43px;border-radius:14px;background:linear-gradient(145deg,#b78aff,#6331c9);display:grid;place-items:center;font-weight:900;font-size:19px;box-shadow:0 0 25px #8d4fff55}
+.logo strong{font-size:20px;letter-spacing:1px}
+.logo small{display:block;color:#9e91b5;font-size:10px}
+.nav-title{font-size:11px;color:#766b8a;margin:25px 12px 10px}
+.nav a{display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:12px;text-decoration:none;color:#a99dbd;font-size:13px;margin:5px 0;transition:.2s}
+.nav a:hover,.nav a.active{background:linear-gradient(90deg,#8c50e82c,#9b65ff12);color:white;border:1px solid #8d58d84d}
+.nav a.active{box-shadow:inset -3px 0 var(--purple)}
+.nav-icon{font-size:18px;width:23px;text-align:center}
+.sidebar-bottom{position:absolute;bottom:20px;right:17px;left:17px}
+.support{padding:15px;background:#1c152b;border:1px solid var(--border);border-radius:15px;font-size:12px;color:#b9accb}
+.support strong{color:white}
+.main{margin-right:255px;width:calc(100% - 255px);padding:25px 35px 45px;max-width:1600px}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;gap:15px}
+.breadcrumb{color:#8f849f;font-size:12px}
+.profile{display:flex;align-items:center;gap:12px;background:#171323;border:1px solid var(--border);padding:9px 14px;border-radius:13px;font-size:12px}
+.avatar{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#a879ff,#5124a4);display:grid;place-items:center}
+.hero{position:relative;overflow:hidden;border:1px solid #4b326b;border-radius:23px;padding:32px;background:linear-gradient(115deg,#211333,#171021 55%,#281344);margin-bottom:25px}
+.hero:after{content:"";position:absolute;width:280px;height:280px;border-radius:50%;background:#9a54ff22;filter:blur(55px);left:5%;top:-100px}
+.hero-content{position:relative;z-index:1}
+.eyebrow{color:#c09bff;font-size:11px;letter-spacing:1px}
+.hero h1{font-size:30px;margin:10px 0}
+.hero h1 span{color:#c29cff}
+.hero p{color:#b7a9c8;font-size:13px;line-height:2;max-width:550px}
+.btn{display:inline-block;border:0;border-radius:11px;padding:11px 19px;background:linear-gradient(110deg,#a16aff,#713bd0);color:white;text-decoration:none;font-size:12px;font-weight:700;box-shadow:0 5px 20px #8848db33}
+.btn.secondary{background:#211a30;border:1px solid #49345e;box-shadow:none}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin:27px 0 15px}
+.section-head h2{font-size:17px;margin:0}
+.section-head span{font-size:11px;color:#9588a8}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat,.card{background:linear-gradient(145deg,#191426,#12101b);border:1px solid var(--border);border-radius:17px;padding:19px}
+.stat-top{display:flex;justify-content:space-between;color:#a99ab9;font-size:11px}
+.stat-icon{width:35px;height:35px;background:#8f56e822;border-radius:11px;display:grid;place-items:center;font-size:17px}
+.stat strong{display:block;font-size:24px;margin-top:12px}
+.stat small{color:#897c9b;font-size:10px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{transition:.2s}
+.card:hover{border-color:#8253bd;transform:translateY(-3px)}
+.card-icon{font-size:24px;margin-bottom:13px}
+.card h3{font-size:14px;margin:0 0 7px}
+.card p{color:#9d91ac;font-size:11px;line-height:1.9;min-height:43px}
+.card a{font-size:11px;color:#c19cff;text-decoration:none}
+.server-box{background:#171323;border:1px solid var(--border);border-radius:17px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.server-box p{font-size:11px;color:#988ca8}
+.server-box h3{font-size:14px;margin:0}
+.status{color:#8fe1b3;font-size:10px}
+footer{text-align:center;color:#675d76;font-size:10px;padding:35px 0 5px}
+.mobile-menu{display:none}
+@media(max-width:1000px){.stats{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){
+.sidebar{display:none}.main{margin:0;width:100%;padding:18px}
+.mobile-menu{display:block;background:#20182e;border:1px solid var(--border);color:white;padding:8px 12px;border-radius:9px}
+.hero{padding:23px}.hero h1{font-size:23px}
+.cards{grid-template-columns:1fr}.stats{gap:9px}
+.stat{padding:13px}.stat strong{font-size:20px}
+}
 </style>
 </head>
 <body>
+<div class="layout">
+<aside class="sidebar">
+<div class="logo">
+<div class="logo-icon">D</div>
+<div><strong>DRO BOT</strong><small>CONTROL CENTER</small></div>
+</div>
+<div class="nav-title">القائمة الرئيسية</div>
+<nav class="nav">
+<a class="active" href="#home"><span class="nav-icon">⌂</span>الرئيسية</a>
+<a href="#servers"><span class="nav-icon">▦</span>سيرفراتي</a>
+<a href="#tickets"><span class="nav-icon">✉</span>الدعم الفني والتذاكر</a>
+<a href="#security"><span class="nav-icon">⬡</span>الحماية</a>
+<a href="#roles"><span class="nav-icon">♛</span>إدارة الرتب</a>
+<a href="#logs"><span class="nav-icon">▤</span>السجلات</a>
+<a href="#admin"><span class="nav-icon">⚒</span>الإدارة</a>
+<div class="nav-title">أخرى</div>
+<a href="#settings"><span class="nav-icon">⚙</span>الإعدادات العامة</a>
+<a href="#support"><span class="nav-icon">◉</span>المساعدة والدعم</a>
+</nav>
+<div class="sidebar-bottom">
+<div class="support"><strong>✦ DRO BOT</strong><br>نظام إدارة متكامل لسيرفرك.</div>
+</div>
+</aside>
 
-<header>
-<div class="logo">DRO BOT</div>
-<button onclick="addBot()">إضافة البوت</button>
-</header>
+<main class="main" id="home">
+<div class="topbar">
+<div><button class="mobile-menu" onclick="alert('القائمة الجانبية تظهر على الشاشات الكبيرة')">☰</button> <span class="breadcrumb">DRO BOT / لوحة التحكم</span></div>
+<div class="profile"><div class="avatar">D</div><span>زائر لوحة التحكم</span></div>
+</div>
 
-<div class="hero">
+<section class="hero">
+<div class="hero-content">
+<div class="eyebrow">✦ THE ULTIMATE DISCORD EXPERIENCE</div>
 <h1>مرحباً بك في <span>DRO BOT</span></h1>
-<p>لوحة تحكم احترافية لإدارة سيرفر الديسكورد الخاص بك.<br>
-تحكم بالحماية والتذاكر والرتب وجميع أنظمة البوت.</p>
-<button onclick="addBot()">إضافة البوت إلى سيرفرك</button>
+<p>تحكم بسيرفرك من مكان واحد. إدارة متطورة، حماية ذكية، ونظام تذاكر احترافي بتجربة سهلة وفاخرة.</p>
+<a class="btn" href="https://dro-bot-api.ggggllkk42.workers.dev/login">تسجيل الدخول عبر Discord ↗</a>
+</div>
+</section>
+
+<div class="section-head"><h2>نظرة عامة</h2><span>لوحة تحكم DRO BOT</span></div>
+<div class="stats">
+<div class="stat"><div class="stat-top">السيرفرات <span class="stat-icon">▦</span></div><strong>—</strong><small>سجّل الدخول لعرض سيرفراتك</small></div>
+<div class="stat"><div class="stat-top">أنظمة الحماية <span class="stat-icon">⬡</span></div><strong>—</strong><small>إعدادات الحماية</small></div>
+<div class="stat"><div class="stat-top">التذاكر <span class="stat-icon">✉</span></div><strong>—</strong><small>إدارة الدعم الفني</small></div>
+<div class="stat"><div class="stat-top">حالة البوت <span class="stat-icon">✦</span></div><strong>—</strong><small>تحتاج ربطاً مباشراً</small></div>
 </div>
 
-<div class="container">
-<h2 class="heading">⚙️ لوحة الأنظمة</h2>
+<div class="section-head" id="servers"><h2>إدارة السيرفرات</h2><span>تحكم بسيرفراتك</span></div>
+<div class="server-box">
+<div><h3>سيرفرات Discord الخاصة بك</h3><p>سجّل الدخول لعرض السيرفرات التي تملك صلاحية إدارتها.</p></div>
+<a class="btn" href="https://dro-bot-api.ggggllkk42.workers.dev/login">عرض سيرفراتي</a>
+</div>
+
+<div class="section-head"><h2>أنظمة البوت</h2><span>اختر القسم الذي تريد إدارته</span></div>
 <div class="cards">
-
-<div class="card">
-<h3>🎫 الدعم الفني</h3>
-<p>إنشاء التذاكر وإعداد رسائلها وتحديد روم نشر التذاكر.</p>
-<span class="status">إعدادات الدعم الفني</span>
-<button onclick="show('الدعم الفني')">فتح الإعدادات</button>
+<div class="card" id="tickets"><div class="card-icon">🎫</div><h3>الدعم الفني والتذاكر</h3><p>إعداد التذاكر، رسائل الترحيب، روم النشر، وأقسام الدعم.</p><a href="#tickets">فتح القسم ←</a></div>
+<div class="card" id="security"><div class="card-icon">🛡️</div><h3>مركز الحماية</h3><p>التحكم بمنع التكرار والروابط والمنشن والتخريب.</p><a href="#security">فتح القسم ←</a></div>
+<div class="card" id="roles"><div class="card-icon">👑</div><h3>إدارة الرتب</h3><p>إعطاء الرتب وإزالتها وتنظيم صلاحيات الأعضاء.</p><a href="#roles">فتح القسم ←</a></div>
+<div class="card" id="logs"><div class="card-icon">📋</div><h3>السجلات</h3><p>متابعة الأحداث والتغييرات داخل السيرفر.</p><a href="#logs">فتح القسم ←</a></div>
+<div class="card" id="admin"><div class="card-icon">⚒️</div><h3>الإدارة</h3><p>أدوات الإدارة والتحذير والطرد والحظر.</p><a href="#admin">فتح القسم ←</a></div>
+<div class="card" id="settings"><div class="card-icon">⚙️</div><h3>الإعدادات العامة</h3><p>إعدادات البوت وتفضيلات السيرفر.</p><a href="#settings">فتح القسم ←</a></div>
 </div>
-
-<div class="card">
-<h3>🛡️ الحماية</h3>
-<p>التحكم بمنع التكرار والروابط والمنشن الجماعي والحماية من التخريب.</p>
-<span class="status">تحكم مستقل لكل حماية</span>
-<button onclick="show('الحماية')">فتح الإعدادات</button>
+<footer id="support">DRO BOT © 2026 — جميع الحقوق محفوظة<br>صُنع بكل فخر لـ DRO BOT</footer>
+</main>
 </div>
-
-<div class="card">
-<h3>👑 إدارة الرتب</h3>
-<p>إعطاء الرتب وإزالتها وإدارة صلاحيات الأعضاء.</p>
-<span class="status">إعدادات الرتب</span>
-<button onclick="show('إدارة الرتب')">فتح الإعدادات</button>
-</div>
-
-<div class="card">
-<h3>📋 السجلات</h3>
-<p>متابعة الأحداث والتغييرات التي تحدث داخل السيرفر.</p>
-<span class="status">سجلات السيرفر</span>
-<button onclick="show('السجلات')">فتح الإعدادات</button>
-</div>
-
-<div class="card">
-<h3>🔨 الإدارة</h3>
-<p>أوامر الحظر والطرد والتحذير وإدارة الأعضاء.</p>
-<span class="status">أدوات الإدارة</span>
-<button onclick="show('الإدارة')">فتح الإعدادات</button>
-</div>
-
-<div class="card">
-<h3>⚙️ الإعدادات العامة</h3>
-<p>إعدادات البوت العامة والتحكم بتفضيلات السيرفر.</p>
-<span class="status">الإعدادات العامة</span>
-<button onclick="show('الإعدادات العامة')">فتح الإعدادات</button>
-</div>
-
-</div>
-</div>
-
-<footer>
-DRO BOT © 2026 | جميع الحقوق محفوظة
-</footer>
-
-<script>
-function addBot(){
-location.href="https://discord.com/oauth2/authorize?client_id=1564613448682176613";
-}
-function show(name){
-alert("قسم "+name+" قيد الربط بالنظام.");
-}
-</script>
 </body>
 </html>
