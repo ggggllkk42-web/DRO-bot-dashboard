@@ -1,4 +1,3 @@
-
 const {
   EmbedBuilder,
   ActionRowBuilder,
@@ -26,6 +25,16 @@ function saveGuild(guildId, callback) {
 function isAdmin(member) {
   return member.permissions.has(
     PermissionsBitField.Flags.Administrator
+  );
+}
+
+function canReview(member, settings) {
+  return (
+    isAdmin(member) ||
+    (
+      settings.reviewRoleId &&
+      member.roles.cache.has(settings.reviewRoleId)
+    )
   );
 }
 
@@ -67,27 +76,19 @@ async function handleApplicationInteraction(interaction) {
 
   try {
     if (command) {
-      const settings = getGuild(guildId).applications;
-
-const canReview =
-  isAdmin(interaction.member) ||
-  (
-    settings.reviewRoleId &&
-    interaction.member.roles.cache.has(settings.reviewRoleId)
-  );
-
-if (!canReview) {
-  await interaction.reply({
-    content: "هذا الإجراء للإدارة أو رتبة مراجعة الطلبات فقط.",
-    ephemeral: true
-  });
-  return true;
-}
+      if (!isAdmin(interaction.member)) {
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
+        return true;
+      }
 
       if (command === "apply-setup") {
         const channel = interaction.options.getChannel("channel");
         const review = interaction.options.getChannel("review");
         const role = interaction.options.getRole("role");
+        const acceptedRole = interaction.options.getRole("accepted-role");
 
         if (!channel || !review) {
           await interaction.reply({
@@ -101,10 +102,11 @@ if (!canReview) {
           data.channelId = channel.id;
           data.reviewChannelId = review.id;
           data.reviewRoleId = role?.id || null;
+          data.acceptedRoleId = acceptedRole?.id || null;
         });
 
         await interaction.reply({
-          content: "تم حفظ إعدادات التقديم بنجاح.",
+          content: "تم حفظ إعدادات التقديم ورتب المراجعة والقبول بنجاح.",
           ephemeral: true
         });
         return true;
@@ -112,6 +114,7 @@ if (!canReview) {
 
       if (command === "apply-panel") {
         const data = getGuild(guildId).applications;
+
         const channel =
           interaction.options.getChannel("channel") ||
           (data.channelId
@@ -152,7 +155,7 @@ if (!canReview) {
 
       if (command === "apply-settings") {
         await interaction.reply({
-          content: "إعدادات التقديم الأساسية محفوظة. يمكننا تطوير خياراتها لاحقًا.",
+          content: "إعدادات التقديم محفوظة. استخدم أمر apply-setup لتحديث الرومات والرتب.",
           ephemeral: true
         });
         return true;
@@ -195,15 +198,18 @@ if (!canReview) {
         customId.startsWith("dro_apply_accept_") ||
         customId.startsWith("dro_apply_reject_")
       ) {
-        if (!isAdmin(interaction.member)) {
+        const settings = getGuild(guildId).applications;
+
+        if (!canReview(interaction.member, settings)) {
           await interaction.reply({
-            content: "هذا الإجراء للإدارة فقط.",
+            content: "هذا الإجراء للإدارة أو رتبة مراجعة الطلبات فقط.",
             ephemeral: true
           });
           return true;
         }
 
         const accepted = customId.startsWith("dro_apply_accept_");
+
         const id = customId.replace(
           accepted ? "dro_apply_accept_" : "dro_apply_reject_",
           ""
@@ -213,15 +219,18 @@ if (!canReview) {
         const applications = db.guilds[guildId]?.applications;
         const submission = applications?.submissions?.[id];
 
-        if (!submission) {
+        if (!submission || submission.status !== "pending") {
           await interaction.reply({
-            content: "هذا الطلب غير موجود أو تمت معالجته.",
+            content: "هذا الطلب غير موجود أو تمت معالجته مسبقًا.",
             ephemeral: true
           });
           return true;
         }
 
         submission.status = accepted ? "accepted" : "rejected";
+        submission.reviewedBy = interaction.user.id;
+        submission.reviewedAt = Date.now();
+
         saveDatabase(db);
 
         if (accepted && applications.acceptedRoleId) {
@@ -231,7 +240,9 @@ if (!canReview) {
 
           if (target) {
             await target.roles.add(applications.acceptedRoleId)
-              .catch(() => {});
+              .catch(error => {
+                console.error("Accepted role error:", error);
+              });
           }
         }
 
@@ -248,16 +259,20 @@ if (!canReview) {
         }
 
         await interaction.update({
-          content: accepted ? "✅ تم قبول الطلب." : "❌ تم رفض الطلب.",
+          content: accepted
+            ? `✅ تم قبول الطلب بواسطة ${interaction.user}.`
+            : `❌ تم رفض الطلب بواسطة ${interaction.user}.`,
           embeds: [],
           components: []
         });
+
         return true;
       }
     }
 
     if (isApplyModal && interaction.customId === "dro_apply_modal") {
       const data = getGuild(guildId).applications;
+
       const reviewChannel = data.reviewChannelId
         ? guild.channels.cache.get(data.reviewChannelId)
         : null;
@@ -288,7 +303,8 @@ if (!canReview) {
         applications.submissions[id] = {
           userId: interaction.user.id,
           status: "pending",
-          answers
+          answers,
+          createdAt: Date.now()
         };
       });
 
@@ -323,6 +339,7 @@ if (!canReview) {
         content: "تم إرسال طلبك بنجاح. بالتوفيق!",
         ephemeral: true
       });
+
       return true;
     }
 
