@@ -30,7 +30,6 @@ function isAdmin(member) {
 
 function saveGuild(guildId, callback) {
   getGuild(guildId);
-
   const database = loadDatabase();
   callback(database.guilds[guildId]);
   saveDatabase(database);
@@ -88,13 +87,11 @@ async function handleInteraction(interaction) {
           "`/clear` مسح الرسائل\n" +
           "`/lock` قفل الروم\n" +
           "`/unlock` فتح الروم\n" +
-          "`/logs` إعداد اللوقات\n" +
           "`/apply-setup` إعداد التقديم\n" +
           "`/apply-panel` نشر لوحة التقديم\n" +
-          "`/laws` نشر القوانين\n" +
-          "`/law-add` إضافة قانون\n" +
-          "`/law-edit` تعديل قانون\n" +
-          "`/law-delete` حذف قانون"
+          "`/laws-setup` إعداد القوانين\n" +
+          "`/laws-edit` تعديل قانون\n" +
+          "`/laws-publish` نشر القوانين"
         );
 
       await interaction.reply({
@@ -216,7 +213,16 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    if (command === "logs" || command === "logs-channel") {
+    if (
+      command === "laws-setup" ||
+      command === "laws-edit" ||
+      command === "laws-publish" ||
+      command === "law-add" ||
+      command === "law-edit" ||
+      command === "law-delete" ||
+      command === "laws" ||
+      command === "law-publish"
+    ) {
       if (!isAdmin(member)) {
         await interaction.reply({
           content: "هذا الأمر للإدارة فقط.",
@@ -225,49 +231,66 @@ async function handleInteraction(interaction) {
         return true;
       }
 
-      const channel = interaction.options.getChannel("channel");
+      if (command === "laws-setup") {
+        const title = interaction.options.getString("title");
+        const channel = interaction.options.getChannel("channel");
 
-      if (!channel) {
+        saveGuild(guild.id, data => {
+          data.laws.title = title;
+          data.laws.channelId = channel.id;
+        });
+
         await interaction.reply({
-          content: "حدد روم اللوقات أولاً.",
+          content: "تم حفظ إعدادات القوانين.",
           ephemeral: true
         });
         return true;
       }
 
-      saveGuild(guild.id, data => {
-        data.logs.channelId = channel.id;
-        data.logs.enabled = true;
-      });
+      if (command === "law-add") {
+        const law = interaction.options.getString("law");
 
-      await interaction.reply(`تم تحديد ${channel} رومًا للوقات.`);
-      return true;
-    }
-
-    if (command === "logs-delete") {
-      if (!isAdmin(member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
+        saveGuild(guild.id, data => {
+          if (!data.laws.items) data.laws.items = [];
+          data.laws.items.push(law);
         });
+
+        await interaction.reply("تمت إضافة القانون بنجاح.");
         return true;
       }
 
-      saveGuild(guild.id, data => {
-        data.logs.channelId = null;
-        data.logs.enabled = false;
-      });
+      if (command === "laws-edit" || command === "law-edit") {
+        const number = interaction.options.getInteger("number");
+        const law = interaction.options.getString("law");
+        let updated = false;
 
-      await interaction.reply("تم إيقاف إعدادات اللوقات.");
-      return true;
-    }
-
-    if (command === "laws" || command === "law-publish") {
-      if (!isAdmin(member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
+        saveGuild(guild.id, data => {
+          if (data.laws.items[number - 1] !== undefined) {
+            data.laws.items[number - 1] = law;
+            updated = true;
+          }
         });
+
+        await interaction.reply(
+          updated ? "تم تعديل القانون." : "رقم القانون غير موجود."
+        );
+        return true;
+      }
+
+      if (command === "law-delete") {
+        const number = interaction.options.getInteger("number");
+        let deleted = false;
+
+        saveGuild(guild.id, data => {
+          if (data.laws.items[number - 1] !== undefined) {
+            data.laws.items.splice(number - 1, 1);
+            deleted = true;
+          }
+        });
+
+        await interaction.reply(
+          deleted ? "تم حذف القانون." : "رقم القانون غير موجود."
+        );
         return true;
       }
 
@@ -288,9 +311,9 @@ async function handleInteraction(interaction) {
           ? guild.channels.cache.get(data.laws.channelId)
           : interaction.channel);
 
-      if (!channel) {
+      if (!channel || !channel.isTextBased()) {
         await interaction.reply({
-          content: "حدد رومًا صحيحًا للقوانين.",
+          content: "حدد رومًا كتابيًا صحيحًا للقوانين.",
           ephemeral: true
         });
         return true;
@@ -304,6 +327,7 @@ async function handleInteraction(interaction) {
         );
 
       await channel.send({ embeds: [panel] });
+
       await interaction.reply({
         content: "تم نشر القوانين.",
         ephemeral: true
@@ -311,80 +335,11 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    if (command === "law-add") {
-      if (!isAdmin(member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
-        });
-        return true;
-      }
-
-      const law = interaction.options.getString("law");
-
-      saveGuild(guild.id, data => {
-        data.laws.items.push(law);
-      });
-
-      await interaction.reply("تمت إضافة القانون بنجاح.");
-      return true;
-    }
-
-    if (command === "law-edit") {
-      if (!isAdmin(member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
-        });
-        return true;
-      }
-
-      const number = interaction.options.getInteger("number");
-      const law = interaction.options.getString("law");
-      let updated = false;
-
-      saveGuild(guild.id, data => {
-        if (data.laws.items[number - 1] !== undefined) {
-          data.laws.items[number - 1] = law;
-          updated = true;
-        }
-      });
-
-      await interaction.reply(
-        updated ? "تم تعديل القانون." : "رقم القانون غير موجود."
-      );
-      return true;
-    }
-
-    if (command === "law-delete") {
-      if (!isAdmin(member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
-        });
-        return true;
-      }
-
-      const number = interaction.options.getInteger("number");
-      let deleted = false;
-
-      saveGuild(guild.id, data => {
-        if (data.laws.items[number - 1] !== undefined) {
-          data.laws.items.splice(number - 1, 1);
-          deleted = true;
-        }
-      });
-
-      await interaction.reply(
-        deleted ? "تم حذف القانون." : "رقم القانون غير موجود."
-      );
-      return true;
-    }
-
     await interaction.reply({
-      content: "هذا الأمر لم تتم برمجته بعد. بنضيفه في المراحل القادمة.",
+      content: "هذا الأمر لم تتم برمجته بعد.",
       ephemeral: true
     });
+
     return true;
 
   } catch (error) {
