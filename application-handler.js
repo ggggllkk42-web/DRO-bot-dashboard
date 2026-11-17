@@ -67,13 +67,22 @@ async function handleApplicationInteraction(interaction) {
 
   try {
     if (command) {
-      if (!isAdmin(interaction.member)) {
-        await interaction.reply({
-          content: "هذا الأمر للإدارة فقط.",
-          ephemeral: true
-        });
-        return true;
-      }
+      const settings = getGuild(guildId).applications;
+
+const canReview =
+  isAdmin(interaction.member) ||
+  (
+    settings.reviewRoleId &&
+    interaction.member.roles.cache.has(settings.reviewRoleId)
+  );
+
+if (!canReview) {
+  await interaction.reply({
+    content: "هذا الإجراء للإدارة أو رتبة مراجعة الطلبات فقط.",
+    ephemeral: true
+  });
+  return true;
+}
 
       if (command === "apply-setup") {
         const channel = interaction.options.getChannel("channel");
