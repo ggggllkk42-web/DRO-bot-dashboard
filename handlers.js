@@ -2,7 +2,9 @@ const {
   EmbedBuilder,
   PermissionsBitField
 } = require("discord.js");
-
+const {
+  handleTicketInteraction
+} = require("./ticket-handler");
 const {
   getGuild,
   loadDatabase,
@@ -24,6 +26,22 @@ function saveGuild(guildId, callback) {
 }
 
 async function handleInteraction(interaction) {
+
+  if (
+    interaction.isButton() &&
+    interaction.customId.startsWith("dro_ticket_")
+  ) {
+    return await handleTicketInteraction(interaction);
+  }
+
+  if (
+    interaction.isChatInputCommand() &&
+    interaction.commandName.startsWith("ticket")
+  ) {
+    return await handleTicketInteraction(interaction);
+  }
+
+  if (!interaction.isChatInputCommand()) return false;
   if (!interaction.isChatInputCommand()) return false;
 
   if (!interaction.guild) {
