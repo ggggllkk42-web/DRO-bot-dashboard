@@ -16,12 +16,13 @@ function saveTickets(guildId, callback) {
   const guild = database.guilds[guildId];
 
   callback(guild.tickets);
-
   saveDatabase(database);
 }
 
 function isAdmin(member) {
-  return member.permissions.has(PermissionsBitField.Flags.Administrator);
+  return member.permissions.has(
+    PermissionsBitField.Flags.Administrator
+  );
 }
 
 function isSupport(interaction, tickets) {
@@ -65,9 +66,10 @@ function controlButtons() {
 async function createTicket(interaction) {
   const guild = interaction.guild;
   const tickets = getGuild(guild.id).tickets;
+  const openTickets = tickets.openTickets || {};
 
-  const existing = Object.values(tickets.openTickets).find(
-    ticket => ticket.userId === interaction.user.id
+  const existing = Object.values(openTickets).find(
+    ticket => ticket.userId === interaction.user.id && !ticket.closed
   );
 
   if (existing) {
@@ -88,7 +90,7 @@ async function createTicket(interaction) {
   const safeName = interaction.user.username
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "-")
-    .slice(0, 15);
+    .slice(0, 15) || "member";
 
   const permissions = [
     {
@@ -117,14 +119,22 @@ async function createTicket(interaction) {
     });
   }
 
+  const category = tickets.categoryId
+    ? guild.channels.cache.get(tickets.categoryId)
+    : null;
+
   const channel = await guild.channels.create({
     name: `ticket-${safeName}`,
     type: ChannelType.GuildText,
-    parent: tickets.categoryId || undefined,
+    parent: category?.type === ChannelType.GuildCategory
+      ? category.id
+      : undefined,
     permissionOverwrites: permissions
   });
 
   saveTickets(guild.id, data => {
+    if (!data.openTickets) data.openTickets = {};
+
     data.openTickets[channel.id] = {
       channelId: channel.id,
       userId: interaction.user.id,
@@ -138,7 +148,7 @@ async function createTicket(interaction) {
     .setColor("#5865F2")
     .setTitle("🎫 تذكرة الدعم الفني")
     .setDescription(
-      `${tickets.welcomeMessage}\n\nيرجى توضيح مشكلتك وسيتم الرد عليك قريباً.`
+      `${tickets.welcomeMessage || "أهلاً بك في الدعم الفني."}\n\nيرجى توضيح مشكلتك وسيتم الرد عليك قريباً.`
     )
     .setFooter({ text: "DRO BOT" })
     .setTimestamp();
@@ -198,6 +208,13 @@ async function closeTicket(interaction, reopen = false) {
     return interaction.reply("تمت إعادة فتح التذكرة.");
   }
 
+  if (ticket.closed) {
+    return interaction.reply({
+      content: "التذكرة مغلقة بالفعل.",
+      ephemeral: true
+    });
+  }
+
   await interaction.channel.permissionOverwrites.edit(ticket.userId, {
     SendMessages: false
   });
@@ -227,9 +244,16 @@ async function claimTicket(interaction) {
     });
   }
 
+  if (ticket.closed) {
+    return interaction.reply({
+      content: "لا يمكن استلام تذكرة مغلقة.",
+      ephemeral: true
+    });
+  }
+
   if (ticket.claimedBy) {
     return interaction.reply({
-      content: "تم استلام هذه التذكرة مسبقاً.",
+      content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticket.claimedBy}>.`,
       ephemeral: true
     });
   }
@@ -271,6 +295,8 @@ async function deleteTicket(interaction) {
 async function handleTicketInteraction(interaction) {
   try {
     if (interaction.isButton()) {
+      if (!interaction.guild) return false;
+
       if (interaction.customId === "dro_ticket_open") {
         await createTicket(interaction);
         return true;
@@ -297,52 +323,36 @@ async function handleTicketInteraction(interaction) {
     if (!interaction.isChatInputCommand()) return false;
 
     const name = interaction.commandName;
-    const tickets = interaction.guild
-      ? getGuild(interaction.guild.id).tickets
-      : null;
 
-    if (!tickets) return false;
+    if (!name.startsWith("ticket")) return false;
 
-    if (name === "ticket") {
-      const title = interaction.options.getString("title", true);
-      const description = interaction.options.getString("description", true);
-      const channel = interaction.options.getChannel("channel", false);
-      const support = interaction.options.getRole("support", false);
-
-      if (support) {
-        saveTickets(interaction.guild.id, data => {
-          data.supportRoleId = support.id;
-        });
-      }
-
-      const target = channel || interaction.channel;
-
-      const embed = new EmbedBuilder()
-        .setColor("#5865F2")
-        .setTitle(title)
-        .setDescription(description)
-        .setFooter({ text: "DRO BOT | الدعم الفني" });
-
-      await target.send({
-        embeds: [embed],
-        components: [ticketButtons()]
-      });
-
-      return interaction.reply({
-        content: `تم إرسال لوحة التذاكر في ${target}.`,
+    if (!interaction.guild) {
+      await interaction.reply({
+        content: "هذا الأمر يعمل داخل السيرفر فقط.",
         ephemeral: true
       });
+      return true;
     }
 
+    if (!isAdmin(interaction.member)) {
+      await interaction.reply({
+        content: "إعدادات التذاكر للإدارة فقط.",
+        ephemeral: true
+      });
+      return true;
+    }
+
+    const tickets = getGuild(interaction.guild.id).tickets;
+
     if (name === "ticket-setup" || name === "ticket-settings") {
-      const channel = interaction.options.getChannel("channel", false);
-      const support = interaction.options.getRole("support", false);
+      const channel = interaction.options.getChannel("channel");
+      const support = interaction.options.getRole("support");
 
       saveTickets(interaction.guild.id, data => {
         if (channel) {
           if (channel.type === ChannelType.GuildCategory) {
             data.categoryId = channel.id;
-          } else {
+          } else if (channel.type === ChannelType.GuildText) {
             data.panelChannelId = channel.id;
           }
         }
@@ -358,16 +368,25 @@ async function handleTicketInteraction(interaction) {
 
     if (name === "ticket-panel") {
       const channel =
-        interaction.options.getChannel("channel", false) ||
+        interaction.options.getChannel("channel") ||
         (tickets.panelChannelId
           ? interaction.guild.channels.cache.get(tickets.panelChannelId)
           : null) ||
         interaction.channel;
 
+      if (!channel || channel.type !== ChannelType.GuildText) {
+        return interaction.reply({
+          content: "حدد رومًا كتابيًا صحيحًا لنشر لوحة التذاكر.",
+          ephemeral: true
+        });
+      }
+
       const embed = new EmbedBuilder()
         .setColor("#5865F2")
         .setTitle("🎫 الدعم الفني")
-        .setDescription(tickets.welcomeMessage)
+        .setDescription(
+          tickets.welcomeMessage || "اضغط الزر بالأسفل لفتح تذكرة دعم فني."
+        )
         .setFooter({ text: "DRO BOT" });
 
       await channel.send({
@@ -386,11 +405,6 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    if (name === "ticket-open") {
-      await closeTicket(interaction, true);
-      return true;
-    }
-
     if (name === "ticket-claim") {
       await claimTicket(interaction);
       return true;
@@ -401,53 +415,27 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    if (name === "ticket-add" || name === "ticket-remove") {
-      const ticket = tickets.openTickets[interaction.channel.id];
+    await interaction.reply({
+      content: "هذا الأمر غير مدعوم حاليًا.",
+      ephemeral: true
+    });
 
-      if (!ticket) {
-        await interaction.reply({
-          content: "هذه القناة ليست تذكرة.",
-          ephemeral: true
-        });
-        return true;
-      }
+    return true;
 
-      if (!isSupport(interaction, tickets)) {
-        await interaction.reply({
-          content: "هذا الأمر لفريق الدعم والإدارة فقط.",
-          ephemeral: true
-        });
-        return true;
-      }
-
-      const member = interaction.options.getUser("member", true);
-
-      if (name === "ticket-add") {
-        await interaction.channel.permissionOverwrites.edit(member.id, {
-          ViewChannel: true,
-          SendMessages: true,
-          ReadMessageHistory: true
-        });
-
-        await interaction.reply(`تمت إضافة ${member} إلى التذكرة.`);
-      } else {
-        await interaction.channel.permissionOverwrites.delete(member.id);
-
-        await interaction.reply(`تمت إزالة ${member} من التذكرة.`);
-      }
-
-      return true;
-    }
-
-    return false;
   } catch (error) {
     console.error("Ticket system error:", error);
 
-    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({
+    if (interaction.isRepliable()) {
+      const response = {
         content: "حدث خطأ أثناء تنفيذ أمر التذاكر. تأكد من صلاحيات البوت.",
         ephemeral: true
-      }).catch(() => {});
+      };
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(response).catch(() => {});
+      } else {
+        await interaction.reply(response).catch(() => {});
+      }
     }
 
     return true;
