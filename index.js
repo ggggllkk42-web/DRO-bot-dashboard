@@ -96,11 +96,28 @@ client.on(Events.ChannelDelete, channel => {
   }
 });
 
-// حذف الرسائل
+
+// منع تكرار لوق حذف الرسالة
+const loggedDeletedMessages = new Set();
+
 client.on(Events.MessageDelete, message => {
   if (!message.guild) return;
+  if (loggedDeletedMessages.has(message.id)) return;
+
+  loggedDeletedMessages.add(message.id);
+
+  setTimeout(() => {
+    loggedDeletedMessages.delete(message.id);
+  }, 60000);
 
   const author = message.author?.tag || "عضو غير معروف";
+
+  log(
+    message.guild,
+    `🗑️ تم حذف رسالة\nالعضو: ${author}\nالروم: <#${message.channelId}>`
+  );
+});
+
 
   log(
     message.guild,
