@@ -45,8 +45,9 @@ async function handleInteraction(interaction) {
   }
 
   if (!interaction.isChatInputCommand()) return false;
-  if (!interaction.isChatInputCommand()) return false;
-
+  const logsHandled = await handleLogsInteraction(interaction);
+if (logsHandled) return true;
+  
   if (!interaction.guild) {
     await interaction.reply({
       content: "هذا الأمر يعمل داخل السيرفر فقط.",
