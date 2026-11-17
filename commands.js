@@ -109,11 +109,10 @@ add("law-edit", "تعديل قانون", c => {
 add("law-delete", "حذف قانون", c => number(c, "number", "رقم القانون"));
 add("law-publish", "نشر القوانين", c => channel(c));
 add("law-settings", "إعدادات القوانين", c => {
-  channel(c);
   text(c, "title", "عنوان القوانين");
+  channel(c);
   role(c, "role");
 });
-
 // اللوقات
 add("logs", "إعداد نظام اللوقات", c => channel(c));
 add("logs-setup", "إنشاء إعدادات اللوقات", c => channel(c));
