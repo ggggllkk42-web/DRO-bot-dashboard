@@ -6,6 +6,9 @@ const {
   handleTicketInteraction
 } = require("./ticket-handler");
 const {
+  handleLogsInteraction
+} = require("./logs-handler");
+const {
   getGuild,
   loadDatabase,
   saveDatabase
