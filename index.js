@@ -350,3 +350,4 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 client.login(TOKEN);
 require("./deploy-commands");
+console.log("تم تشغيل ملف تسجيل الأوامر.");
