@@ -1,13 +1,21 @@
+
 const {
   EmbedBuilder,
   PermissionsBitField
 } = require("discord.js");
+
 const {
   handleTicketInteraction
 } = require("./ticket-handler");
+
 const {
   handleLogsInteraction
 } = require("./logs-handler");
+
+const {
+  handleApplicationInteraction
+} = require("./application-handler");
+
 const {
   getGuild,
   loadDatabase,
@@ -29,38 +37,45 @@ function saveGuild(guildId, callback) {
 }
 
 async function handleInteraction(interaction) {
-
-  if (
-    interaction.isButton() &&
-    interaction.customId.startsWith("dro_ticket_")
-  ) {
-    return await handleTicketInteraction(interaction);
-  }
-
-  if (
-    interaction.isChatInputCommand() &&
-    interaction.commandName.startsWith("ticket")
-  ) {
-    return await handleTicketInteraction(interaction);
-  }
-
-  if (!interaction.isChatInputCommand()) return false;
-  const logsHandled = await handleLogsInteraction(interaction);
-if (logsHandled) return true;
-  
-  if (!interaction.guild) {
-    await interaction.reply({
-      content: "هذا الأمر يعمل داخل السيرفر فقط.",
-      ephemeral: true
-    });
-    return true;
-  }
-
-  const command = interaction.commandName;
-  const guild = interaction.guild;
-  const member = interaction.member;
-
   try {
+    const applicationHandled =
+      await handleApplicationInteraction(interaction);
+
+    if (applicationHandled) return true;
+
+    if (
+      interaction.isButton() &&
+      interaction.customId.startsWith("dro_ticket_")
+    ) {
+      return await handleTicketInteraction(interaction);
+    }
+
+    if (
+      interaction.isChatInputCommand() &&
+      interaction.commandName.startsWith("ticket")
+    ) {
+      return await handleTicketInteraction(interaction);
+    }
+
+    if (!interaction.isChatInputCommand()) return false;
+
+    const logsHandled =
+      await handleLogsInteraction(interaction);
+
+    if (logsHandled) return true;
+
+    if (!interaction.guild) {
+      await interaction.reply({
+        content: "هذا الأمر يعمل داخل السيرفر فقط.",
+        ephemeral: true
+      });
+      return true;
+    }
+
+    const command = interaction.commandName;
+    const guild = interaction.guild;
+    const member = interaction.member;
+
     if (command === "help") {
       const panel = new EmbedBuilder()
         .setColor("#9b65ff")
@@ -74,11 +89,12 @@ if (logsHandled) return true;
           "`/lock` قفل الروم\n" +
           "`/unlock` فتح الروم\n" +
           "`/logs` إعداد اللوقات\n" +
+          "`/apply-setup` إعداد التقديم\n" +
+          "`/apply-panel` نشر لوحة التقديم\n" +
           "`/laws` نشر القوانين\n" +
           "`/law-add` إضافة قانون\n" +
           "`/law-edit` تعديل قانون\n" +
-          "`/law-delete` حذف قانون\n" +
-          "`/law-publish` نشر القوانين"
+          "`/law-delete` حذف قانون"
         );
 
       await interaction.reply({
@@ -90,7 +106,10 @@ if (logsHandled) return true;
 
     if (command === "kick") {
       if (!member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
-        await interaction.reply({ content: "ما عندك صلاحية الطرد.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية الطرد.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -105,7 +124,10 @@ if (logsHandled) return true;
 
     if (command === "ban") {
       if (!member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-        await interaction.reply({ content: "ما عندك صلاحية الحظر.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية الحظر.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -119,7 +141,10 @@ if (logsHandled) return true;
 
     if (command === "unban") {
       if (!member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-        await interaction.reply({ content: "ما عندك صلاحية فك الحظر.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية فك الحظر.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -131,7 +156,10 @@ if (logsHandled) return true;
 
     if (command === "timeout") {
       if (!member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
-        await interaction.reply({ content: "ما عندك صلاحية الإسكات.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية الإسكات.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -141,13 +169,18 @@ if (logsHandled) return true;
       const target = await guild.members.fetch(user.id);
 
       await target.timeout(minutes * 60000, reason);
-      await interaction.reply(`تم إسكات ${user.tag} لمدة ${minutes} دقيقة.`);
+      await interaction.reply(
+        `تم إسكات ${user.tag} لمدة ${minutes} دقيقة.`
+      );
       return true;
     }
 
     if (command === "clear") {
       if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
-        await interaction.reply({ content: "ما عندك صلاحية مسح الرسائل.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية مسح الرسائل.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -163,7 +196,10 @@ if (logsHandled) return true;
 
     if (command === "lock" || command === "unlock") {
       if (!member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
-        await interaction.reply({ content: "ما عندك صلاحية إدارة الرومات.", ephemeral: true });
+        await interaction.reply({
+          content: "ما عندك صلاحية إدارة الرومات.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -182,14 +218,20 @@ if (logsHandled) return true;
 
     if (command === "logs" || command === "logs-channel") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
       const channel = interaction.options.getChannel("channel");
 
       if (!channel) {
-        await interaction.reply({ content: "حدد روم اللوقات أولاً.", ephemeral: true });
+        await interaction.reply({
+          content: "حدد روم اللوقات أولاً.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -204,7 +246,10 @@ if (logsHandled) return true;
 
     if (command === "logs-delete") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -219,7 +264,10 @@ if (logsHandled) return true;
 
     if (command === "laws" || command === "law-publish") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -234,7 +282,8 @@ if (logsHandled) return true;
         return true;
       }
 
-      const channel = interaction.options.getChannel("channel") ||
+      const channel =
+        interaction.options.getChannel("channel") ||
         (data.laws.channelId
           ? guild.channels.cache.get(data.laws.channelId)
           : interaction.channel);
@@ -255,13 +304,19 @@ if (logsHandled) return true;
         );
 
       await channel.send({ embeds: [panel] });
-      await interaction.reply({ content: "تم نشر القوانين.", ephemeral: true });
+      await interaction.reply({
+        content: "تم نشر القوانين.",
+        ephemeral: true
+      });
       return true;
     }
 
     if (command === "law-add") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -277,7 +332,10 @@ if (logsHandled) return true;
 
     if (command === "law-edit") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
@@ -300,7 +358,10 @@ if (logsHandled) return true;
 
     if (command === "law-delete") {
       if (!isAdmin(member)) {
-        await interaction.reply({ content: "هذا الأمر للإدارة فقط.", ephemeral: true });
+        await interaction.reply({
+          content: "هذا الأمر للإدارة فقط.",
+          ephemeral: true
+        });
         return true;
       }
 
