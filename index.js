@@ -349,3 +349,4 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 });
 
 client.login(TOKEN);
+require("./deploy-commands");
