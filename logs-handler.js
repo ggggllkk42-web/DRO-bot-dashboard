@@ -1,3 +1,4 @@
+
 const {
   EmbedBuilder,
   PermissionsBitField,
@@ -29,14 +30,14 @@ async function handleLogsInteraction(interaction) {
   const command = interaction.commandName;
 
   const commands = [
-  "logs",
-  "logs-setup",
-  "logs-channel",
-  "logs-category",
-  "logs-settings",
-  "logs-edit",
-  "logs-delete"
-];
+    "logs",
+    "logs-setup",
+    "logs-channel",
+    "logs-category",
+    "logs-settings",
+    "logs-edit",
+    "logs-delete"
+  ];
 
   if (!commands.includes(command)) return false;
 
@@ -67,41 +68,29 @@ async function handleLogsInteraction(interaction) {
       });
 
       await interaction.reply({
-        content: "تم إيقاف نظام اللوقات.",
+        content: "تم إيقاف نظام السجلات.",
         ephemeral: true
       });
       return true;
     }
 
     if (command === "logs-category" || command === "logs-settings") {
-  const category = interaction.options.getChannel("category");
-
-  if (!category || category.type !== ChannelType.GuildCategory) {
-    await interaction.reply({
-      content: "حدد كاتقوري صحيحًا للسجلات.",
-      ephemeral: true
-    });
-    return true;
-  }
-
-  saveGuild(guildId, data => {
-    data.logs.categoryId = category.id;
-  });
-
-  await interaction.reply({
-    content: `تم تحديد كاتقوري السجلات: ${category}.`,
-    ephemeral: true
-  });
-  return true;
-}
       const category = interaction.options.getChannel("category");
+
+      if (!category || category.type !== ChannelType.GuildCategory) {
+        await interaction.reply({
+          content: "حدد كاتقوري صحيحًا للسجلات.",
+          ephemeral: true
+        });
+        return true;
+      }
 
       saveGuild(guildId, data => {
         data.logs.categoryId = category.id;
       });
 
       await interaction.reply({
-        content: `تم تحديد كاتقوري اللوقات: ${category}`,
+        content: `تم تحديد كاتقوري السجلات: ${category}.`,
         ephemeral: true
       });
       return true;
@@ -111,7 +100,7 @@ async function handleLogsInteraction(interaction) {
 
     if (!channel || channel.type !== ChannelType.GuildText) {
       await interaction.reply({
-        content: "حدد رومًا كتابيًا صحيحًا للوقات.",
+        content: "حدد رومًا كتابيًا صحيحًا للسجلات.",
         ephemeral: true
       });
       return true;
@@ -123,7 +112,7 @@ async function handleLogsInteraction(interaction) {
     });
 
     await interaction.reply({
-      content: `تم تفعيل اللوقات في ${channel}.`,
+      content: `تم تفعيل السجلات في ${channel}.`,
       ephemeral: true
     });
 
@@ -133,14 +122,14 @@ async function handleLogsInteraction(interaction) {
     console.error("Logs handler error:", error);
 
     const response = {
-      content: "حدث خطأ أثناء إعداد اللوقات.",
+      content: "حدث خطأ أثناء إعداد السجلات.",
       ephemeral: true
     };
 
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(response);
+      await interaction.followUp(response).catch(() => {});
     } else {
-      await interaction.reply(response);
+      await interaction.reply(response).catch(() => {});
     }
 
     return true;
@@ -154,6 +143,7 @@ async function sendLog(guild, title, description) {
     if (!data.logs.enabled || !data.logs.channelId) return;
 
     const channel = guild.channels.cache.get(data.logs.channelId);
+
     if (!channel || !channel.isTextBased()) return;
 
     const embed = new EmbedBuilder()
