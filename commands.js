@@ -35,9 +35,9 @@ const number = (c, name, description, min = 1, max = 100) =>
 
 // التذاكر
 add("ticket", "إعداد نظام التذاكر", c => {
-  channel(c);
   text(c, "title", "عنوان لوحة التذاكر");
   text(c, "description", "وصف لوحة التذاكر");
+  channel(c);
   role(c, "support");
 });
 
