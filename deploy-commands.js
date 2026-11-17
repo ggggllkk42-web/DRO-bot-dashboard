@@ -132,9 +132,12 @@ commands.push(
     .addChannelOption(option =>
       option.setName("review").setDescription("روم استقبال الطلبات").addChannelTypes(ChannelType.GuildText).setRequired(true)
     )
-    .addRoleOption(option =>
-      option.setName("role").setDescription("رتبة مراجعة الطلبات")
-    ),
+   .addRoleOption(option =>
+  option.setName("role").setDescription("رتبة مراجعة الطلبات")
+)
+.addRoleOption(option =>
+  option.setName("accepted-role").setDescription("الرتبة التي يحصل عليها المقبول")
+),
 
   add("apply-panel", "نشر لوحة التقديم")
     .addChannelOption(option =>
