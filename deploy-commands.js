@@ -1,7 +1,7 @@
 
 const { REST, Routes } = require("discord.js");
 const commands = require("./commands");
-
+console.log("عدد الأوامر:", commands.length);
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
