@@ -1,4 +1,3 @@
-
 const {
   EmbedBuilder,
   PermissionsBitField
