@@ -1,10 +1,10 @@
-
 const {
   Client,
   GatewayIntentBits,
   Partials,
   Events,
-  EmbedBuilder
+  EmbedBuilder,
+  PermissionsBitField
 } = require("discord.js");
 
 const { handleInteraction } = require("./handlers");
@@ -21,7 +21,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent
   ],
   partials: [
     Partials.Message,
@@ -56,11 +57,13 @@ async function log(guild, description) {
   }
 }
 
+// تشغيل البوت
 client.once(Events.ClientReady, () => {
   console.log(`DRO BOT is online: ${client.user.tag}`);
   client.user.setActivity("DRO BOT | الدعم الفني");
 });
 
+// استقبال الأوامر
 client.on(Events.InteractionCreate, async interaction => {
   try {
     await handleInteraction(interaction);
@@ -95,7 +98,7 @@ client.on(Events.ChannelDelete, channel => {
   }
 });
 
-// حذف الرسائل ومنع تكرار تسجيل نفس الرسالة
+// حذف الرسائل
 const loggedDeletedMessages = new Set();
 
 client.on(Events.MessageDelete, message => {
@@ -128,13 +131,119 @@ client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
   );
 });
 
-// دخول وخروج الأعضاء
-client.on(Events.GuildMemberAdd, member => {
+// الترحيب وتسجيل دخول الأعضاء
+client.on(Events.GuildMemberAdd, async member => {
   log(member.guild, `🟢 دخل العضو السيرفر: ${member.user.tag}`);
+
+  try {
+    const data = getGuild(member.guild.id);
+    const welcome = data.welcome;
+
+    if (!welcome.enabled || !welcome.channelId) return;
+
+    const channel = await member.guild.channels
+      .fetch(welcome.channelId)
+      .catch(() => null);
+
+    if (!channel || !channel.isTextBased()) return;
+
+    const message = (welcome.message || "أهلاً بك {user} في سيرفر {server}!")
+      .replace(/\{user\}/g, `<@${member.id}>`)
+      .replace(/\{server\}/g, member.guild.name)
+      .replace(/\{username\}/g, member.user.username);
+
+    await channel.send({ content: message });
+  } catch (error) {
+    console.error("Welcome error:", error);
+  }
 });
 
+// خروج الأعضاء
 client.on(Events.GuildMemberRemove, member => {
   log(member.guild, `🔴 غادر العضو السيرفر: ${member.user.tag}`);
+});
+
+// حماية الرسائل
+const spamTracker = new Map();
+
+client.on(Events.MessageCreate, async message => {
+  if (!message.guild || message.author.bot) return;
+
+  try {
+    const data = getGuild(message.guild.id);
+    const protection = data.protection || {};
+
+    if (
+      !protection.antiSpam &&
+      !protection.antiLinks &&
+      !protection.antiMentions
+    ) return;
+
+    const member = message.member;
+
+    if (!member) return;
+
+    const isExempt = member.permissions.has(
+      PermissionsBitField.Flags.Administrator
+    ) || member.permissions.has(
+      PermissionsBitField.Flags.ManageMessages
+    );
+
+    if (isExempt) return;
+
+    let violation = null;
+
+    // منع الروابط
+    if (protection.antiLinks) {
+      const linkPattern = /(https?:\/\/|www\.|discord\.gg\/)/i;
+
+      if (linkPattern.test(message.content)) {
+        violation = "الروابط ممنوعة في هذا السيرفر.";
+      }
+    }
+
+    // منع المنشن الجماعي
+    if (
+      !violation &&
+      protection.antiMentions &&
+      message.mentions.users.size + message.mentions.roles.size >= 5
+    ) {
+      violation = "ممنوع الإكثار من المنشن.";
+    }
+
+    // منع السبام
+    if (!violation && protection.antiSpam) {
+      const key = `${message.guild.id}_${message.author.id}`;
+      const now = Date.now();
+
+      const previous = spamTracker.get(key) || [];
+      const recent = previous.filter(time => now - time < 5000);
+
+      recent.push(now);
+      spamTracker.set(key, recent);
+
+      if (recent.length >= 6) {
+        violation = "تم حذف الرسالة بسبب إرسال رسائل كثيرة بسرعة.";
+        spamTracker.delete(key);
+      }
+    }
+
+    if (violation) {
+      await message.delete().catch(() => {});
+
+      const warning = await message.channel.send({
+        content: `⚠️ ${message.author} ${violation}`
+      }).catch(() => null);
+
+      if (warning) {
+        setTimeout(() => {
+          warning.delete().catch(() => {});
+        }, 5000);
+      }
+    }
+  } catch (error) {
+    console.error("Protection error:", error);
+  }
 });
 
 // الصوتيات
@@ -157,4 +266,3 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 });
 
 client.login(TOKEN);
-
