@@ -48,9 +48,7 @@ async function log(guild, description) {
 
     if (channel && channel.isTextBased()) {
       await channel.send({
-        embeds: [
-          makeEmbed("📋 سجل السيرفر", description)
-        ]
+        embeds: [makeEmbed("📋 سجل السيرفر", description)]
       });
     }
   } catch (error) {
@@ -63,7 +61,7 @@ client.once(Events.ClientReady, () => {
   client.user.setActivity("DRO BOT | الدعم الفني");
 });
 
-// استقبال جميع الأوامر والأزرار من ملف handlers.js
+// الأوامر والأزرار
 client.on(Events.InteractionCreate, async interaction => {
   try {
     await handleInteraction(interaction);
@@ -85,7 +83,7 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// تسجيل إنشاء الرومات وحذفها
+// إنشاء وحذف الرومات
 client.on(Events.ChannelCreate, channel => {
   if (channel.guild) {
     log(channel.guild, `تم إنشاء روم: ${channel.name}`);
@@ -98,7 +96,40 @@ client.on(Events.ChannelDelete, channel => {
   }
 });
 
-// تسجيل دخول وخروج وانتقال الأعضاء في الصوتيات
+// حذف الرسائل
+client.on(Events.MessageDelete, message => {
+  if (!message.guild) return;
+
+  const author = message.author?.tag || "عضو غير معروف";
+
+  log(
+    message.guild,
+    `🗑️ تم حذف رسالة\nالعضو: ${author}\nالروم: <#${message.channelId}>`
+  );
+});
+
+// تعديل الرسائل
+client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
+  if (!newMessage.guild) return;
+
+  const author = newMessage.author?.tag || "عضو غير معروف";
+
+  log(
+    newMessage.guild,
+    `✏️ تم تعديل رسالة\nالعضو: ${author}\nالروم: <#${newMessage.channelId}>\n[عرض الرسالة](${newMessage.url})`
+  );
+});
+
+// دخول وخروج الأعضاء
+client.on(Events.GuildMemberAdd, member => {
+  log(member.guild, `🟢 دخل العضو السيرفر: ${member.user.tag}`);
+});
+
+client.on(Events.GuildMemberRemove, member => {
+  log(member.guild, `🔴 غادر العضو السيرفر: ${member.user.tag}`);
+});
+
+// الصوتيات
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
   const guild = newState.guild;
   const member = newState.member || oldState.member;
