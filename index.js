@@ -61,7 +61,6 @@ client.once(Events.ClientReady, () => {
   client.user.setActivity("DRO BOT | الدعم الفني");
 });
 
-// الأوامر والأزرار
 client.on(Events.InteractionCreate, async interaction => {
   try {
     await handleInteraction(interaction);
@@ -96,8 +95,7 @@ client.on(Events.ChannelDelete, channel => {
   }
 });
 
-
-// منع تكرار لوق حذف الرسالة
+// حذف الرسائل ومنع تكرار تسجيل نفس الرسالة
 const loggedDeletedMessages = new Set();
 
 client.on(Events.MessageDelete, message => {
@@ -111,13 +109,6 @@ client.on(Events.MessageDelete, message => {
   }, 60000);
 
   const author = message.author?.tag || "عضو غير معروف";
-
-  log(
-    message.guild,
-    `🗑️ تم حذف رسالة\nالعضو: ${author}\nالروم: <#${message.channelId}>`
-  );
-});
-
 
   log(
     message.guild,
