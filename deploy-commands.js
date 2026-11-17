@@ -1,4 +1,3 @@
-
 const { REST, Routes } = require("discord.js");
 
 const TOKEN = process.env.DISCORD_TOKEN;
