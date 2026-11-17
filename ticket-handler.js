@@ -8,14 +8,24 @@ const {
   PermissionsBitField
 } = require("discord.js");
 
-const { getGuild, loadDatabase, saveDatabase } = require("./database");
+const {
+  getGuild,
+  loadDatabase,
+  saveDatabase
+} = require("./database");
 
 function saveTickets(guildId, callback) {
   getGuild(guildId);
-  const database = loadDatabase();
-  const guild = database.guilds[guildId];
 
-  callback(guild.tickets);
+  const database = loadDatabase();
+  const guildData = database.guilds[guildId];
+
+  if (!guildData.tickets) guildData.tickets = {};
+  if (!guildData.tickets.openTickets) {
+    guildData.tickets.openTickets = {};
+  }
+
+  callback(guildData.tickets);
   saveDatabase(database);
 }
 
@@ -28,8 +38,10 @@ function isAdmin(member) {
 function isSupport(interaction, tickets) {
   return (
     isAdmin(interaction.member) ||
-    (tickets.supportRoleId &&
-      interaction.member.roles.cache.has(tickets.supportRoleId))
+    (
+      tickets.supportRoleId &&
+      interaction.member.roles.cache.has(tickets.supportRoleId)
+    )
   );
 }
 
@@ -63,13 +75,25 @@ function controlButtons() {
   );
 }
 
+function reopenButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("dro_ticket_reopen")
+      .setLabel("إعادة فتح التذكرة")
+      .setEmoji("🔓")
+      .setStyle(ButtonStyle.Success)
+  );
+}
+
 async function createTicket(interaction) {
   const guild = interaction.guild;
   const tickets = getGuild(guild.id).tickets;
   const openTickets = tickets.openTickets || {};
 
   const existing = Object.values(openTickets).find(
-    ticket => ticket.userId === interaction.user.id && !ticket.closed
+    ticket =>
+      ticket.userId === interaction.user.id &&
+      !ticket.closed
   );
 
   if (existing) {
@@ -87,10 +111,14 @@ async function createTicket(interaction) {
     });
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
   const safeName = interaction.user.username
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "-")
-    .slice(0, 15) || "member";
+    .replace(/-+/g, "-")
+    .slice(0, 15)
+    .replace(/^-|-$/g, "") || "member";
 
   const permissions = [
     {
@@ -104,6 +132,15 @@ async function createTicket(interaction) {
         PermissionsBitField.Flags.SendMessages,
         PermissionsBitField.Flags.ReadMessageHistory,
         PermissionsBitField.Flags.AttachFiles
+      ]
+    },
+    {
+      id: interaction.client.user.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+        PermissionsBitField.Flags.ManageChannels
       ]
     }
   ];
@@ -133,8 +170,6 @@ async function createTicket(interaction) {
   });
 
   saveTickets(guild.id, data => {
-    if (!data.openTickets) data.openTickets = {};
-
     data.openTickets[channel.id] = {
       channelId: channel.id,
       userId: interaction.user.id,
@@ -159,15 +194,14 @@ async function createTicket(interaction) {
     components: [controlButtons()]
   });
 
-  return interaction.reply({
-    content: `تم فتح تذكرتك بنجاح: ${channel}`,
-    ephemeral: true
+  return interaction.editReply({
+    content: `تم فتح تذكرتك بنجاح: ${channel}`
   });
 }
 
-async function closeTicket(interaction, reopen = false) {
+async function closeTicket(interaction) {
   const tickets = getGuild(interaction.guild.id).tickets;
-  const ticket = tickets.openTickets[interaction.channel.id];
+  const ticket = tickets.openTickets?.[interaction.channel.id];
 
   if (!ticket) {
     return interaction.reply({
@@ -182,30 +216,9 @@ async function closeTicket(interaction, reopen = false) {
 
   if (!allowed) {
     return interaction.reply({
-      content: "ليس لديك صلاحية لهذا الإجراء.",
+      content: "ليس لديك صلاحية لإغلاق هذه التذكرة.",
       ephemeral: true
     });
-  }
-
-  if (reopen) {
-    if (!isSupport(interaction, tickets)) {
-      return interaction.reply({
-        content: "فقط الإدارة أو فريق الدعم يمكنهم إعادة فتح التذكرة.",
-        ephemeral: true
-      });
-    }
-
-    await interaction.channel.permissionOverwrites.edit(ticket.userId, {
-      ViewChannel: true,
-      SendMessages: true,
-      ReadMessageHistory: true
-    });
-
-    saveTickets(interaction.guild.id, data => {
-      data.openTickets[interaction.channel.id].closed = false;
-    });
-
-    return interaction.reply("تمت إعادة فتح التذكرة.");
   }
 
   if (ticket.closed) {
@@ -215,20 +228,78 @@ async function closeTicket(interaction, reopen = false) {
     });
   }
 
-  await interaction.channel.permissionOverwrites.edit(ticket.userId, {
-    SendMessages: false
-  });
+  await interaction.channel.permissionOverwrites.edit(
+    ticket.userId,
+    { SendMessages: false }
+  );
 
   saveTickets(interaction.guild.id, data => {
     data.openTickets[interaction.channel.id].closed = true;
   });
 
-  return interaction.reply("🔒 تم إغلاق التذكرة.");
+  await interaction.reply({
+    content: "🔒 تم إغلاق التذكرة. يمكن لفريق الدعم إعادة فتحها.",
+    ephemeral: true
+  });
+
+  await interaction.channel.send({
+    content: "🔒 تم إغلاق هذه التذكرة.",
+    components: [reopenButtons()]
+  });
+}
+
+async function reopenTicket(interaction) {
+  const tickets = getGuild(interaction.guild.id).tickets;
+  const ticket = tickets.openTickets?.[interaction.channel.id];
+
+  if (!ticket) {
+    return interaction.reply({
+      content: "هذه القناة ليست تذكرة مسجلة.",
+      ephemeral: true
+    });
+  }
+
+  if (!isSupport(interaction, tickets)) {
+    return interaction.reply({
+      content: "فقط الإدارة أو فريق الدعم يمكنهم إعادة فتح التذكرة.",
+      ephemeral: true
+    });
+  }
+
+  if (!ticket.closed) {
+    return interaction.reply({
+      content: "التذكرة مفتوحة بالفعل.",
+      ephemeral: true
+    });
+  }
+
+  await interaction.channel.permissionOverwrites.edit(
+    ticket.userId,
+    {
+      ViewChannel: true,
+      SendMessages: true,
+      ReadMessageHistory: true
+    }
+  );
+
+  saveTickets(interaction.guild.id, data => {
+    data.openTickets[interaction.channel.id].closed = false;
+  });
+
+  await interaction.reply({
+    content: "🔓 تمت إعادة فتح التذكرة.",
+    ephemeral: true
+  });
+
+  await interaction.channel.send({
+    content: "🔓 تم إعادة فتح التذكرة.",
+    components: [controlButtons()]
+  });
 }
 
 async function claimTicket(interaction) {
   const tickets = getGuild(interaction.guild.id).tickets;
-  const ticket = tickets.openTickets[interaction.channel.id];
+  const ticket = tickets.openTickets?.[interaction.channel.id];
 
   if (!ticket) {
     return interaction.reply({
@@ -239,7 +310,7 @@ async function claimTicket(interaction) {
 
   if (!isSupport(interaction, tickets)) {
     return interaction.reply({
-      content: "هذا الأمر لفريق الدعم والإدارة فقط.",
+      content: "هذا الإجراء لفريق الدعم والإدارة فقط.",
       ephemeral: true
     });
   }
@@ -259,15 +330,19 @@ async function claimTicket(interaction) {
   }
 
   saveTickets(interaction.guild.id, data => {
-    data.openTickets[interaction.channel.id].claimedBy = interaction.user.id;
+    data.openTickets[interaction.channel.id].claimedBy =
+      interaction.user.id;
   });
 
-  return interaction.reply(`🙋 تم استلام التذكرة بواسطة ${interaction.user}`);
+  return interaction.reply({
+    content: `🙋 تم استلام التذكرة بواسطة ${interaction.user}.`,
+    ephemeral: false
+  });
 }
 
 async function deleteTicket(interaction) {
   const tickets = getGuild(interaction.guild.id).tickets;
-  const ticket = tickets.openTickets[interaction.channel.id];
+  const ticket = tickets.openTickets?.[interaction.channel.id];
 
   if (!ticket) {
     return interaction.reply({
@@ -283,7 +358,10 @@ async function deleteTicket(interaction) {
     });
   }
 
-  await interaction.reply("🗑️ سيتم حذف التذكرة الآن.");
+  await interaction.reply({
+    content: "🗑️ سيتم حذف التذكرة الآن.",
+    ephemeral: true
+  });
 
   saveTickets(interaction.guild.id, data => {
     delete data.openTickets[interaction.channel.id];
@@ -304,6 +382,11 @@ async function handleTicketInteraction(interaction) {
 
       if (interaction.customId === "dro_ticket_close") {
         await closeTicket(interaction);
+        return true;
+      }
+
+      if (interaction.customId === "dro_ticket_reopen") {
+        await reopenTicket(interaction);
         return true;
       }
 
@@ -334,7 +417,13 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    if (!isAdmin(interaction.member)) {
+    const isSetupCommand = [
+      "ticket-setup",
+      "ticket-settings",
+      "ticket-panel"
+    ].includes(name);
+
+    if (isSetupCommand && !isAdmin(interaction.member)) {
       await interaction.reply({
         content: "إعدادات التذاكر للإدارة فقط.",
         ephemeral: true
@@ -369,9 +458,11 @@ async function handleTicketInteraction(interaction) {
     if (name === "ticket-panel") {
       const channel =
         interaction.options.getChannel("channel") ||
-        (tickets.panelChannelId
-          ? interaction.guild.channels.cache.get(tickets.panelChannelId)
-          : null) ||
+        (
+          tickets.panelChannelId
+            ? interaction.guild.channels.cache.get(tickets.panelChannelId)
+            : null
+        ) ||
         interaction.channel;
 
       if (!channel || channel.type !== ChannelType.GuildText) {
@@ -385,7 +476,8 @@ async function handleTicketInteraction(interaction) {
         .setColor("#5865F2")
         .setTitle("🎫 الدعم الفني")
         .setDescription(
-          tickets.welcomeMessage || "اضغط الزر بالأسفل لفتح تذكرة دعم فني."
+          tickets.welcomeMessage ||
+          "اضغط الزر بالأسفل لفتح تذكرة دعم فني."
         )
         .setFooter({ text: "DRO BOT" });
 
