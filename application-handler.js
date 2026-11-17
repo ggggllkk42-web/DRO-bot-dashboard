@@ -6,7 +6,8 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  PermissionsBitField
+  PermissionsBitField,
+  ChannelType
 } = require("discord.js");
 
 const {
@@ -15,10 +16,13 @@ const {
   saveDatabase
 } = require("./database");
 
-function saveGuild(guildId, callback) {
+function saveApplications(guildId, callback) {
   getGuild(guildId);
+
   const db = loadDatabase();
-  callback(db.guilds[guildId].applications);
+  const applications = db.guilds[guildId].applications;
+
+  callback(applications);
   saveDatabase(db);
 }
 
@@ -38,6 +42,26 @@ function canReview(member, settings) {
   );
 }
 
+function applicationQuestions() {
+  return [
+    ["name", "ما اسمك؟"],
+    ["age", "كم عمرك؟"],
+    ["experience", "ما خبرتك الإدارية؟"],
+    ["reason", "لماذا تريد الانضمام للإدارة؟"],
+    ["time", "كم ساعة تستطيع التواجد؟"]
+  ];
+}
+
+async function sendPrivateResult(client, userId, message) {
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send(message);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleApplicationInteraction(interaction) {
   const command = interaction.isChatInputCommand()
     ? interaction.commandName
@@ -49,25 +73,21 @@ async function handleApplicationInteraction(interaction) {
 
   const isApplyModal =
     interaction.isModalSubmit() &&
-    interaction.customId.startsWith("dro_apply_");
+    interaction.customId === "dro_apply_modal";
 
   if (
     !isApplyButton &&
     !isApplyModal &&
-    command !== "apply-setup" &&
-    command !== "apply-panel" &&
-    command !== "apply-settings"
+    !["apply-setup", "apply-panel", "apply-settings"].includes(command)
   ) {
     return false;
   }
 
   if (!interaction.guild) {
-    if (interaction.isRepliable()) {
-      await interaction.reply({
-        content: "هذا النظام يعمل داخل السيرفر فقط.",
-        ephemeral: true
-      });
-    }
+    await interaction.reply({
+      content: "هذا النظام يعمل داخل السيرفر فقط.",
+      ephemeral: true
+    }).catch(() => {});
     return true;
   }
 
@@ -88,17 +108,23 @@ async function handleApplicationInteraction(interaction) {
         const channel = interaction.options.getChannel("channel");
         const review = interaction.options.getChannel("review");
         const role = interaction.options.getRole("role");
-        const acceptedRole = interaction.options.getRole("accepted-role");
+        const acceptedRole =
+          interaction.options.getRole("accepted-role");
 
-        if (!channel || !review) {
+        if (
+          !channel ||
+          channel.type !== ChannelType.GuildText ||
+          !review ||
+          review.type !== ChannelType.GuildText
+        ) {
           await interaction.reply({
-            content: "حدد روم لوحة التقديم وروم استقبال الطلبات.",
+            content: "حدد روم لوحة التقديم وروم استقبال الطلبات بشكل صحيح.",
             ephemeral: true
           });
           return true;
         }
 
-        saveGuild(guildId, data => {
+        saveApplications(guildId, data => {
           data.channelId = channel.id;
           data.reviewChannelId = review.id;
           data.reviewRoleId = role?.id || null;
@@ -106,7 +132,7 @@ async function handleApplicationInteraction(interaction) {
         });
 
         await interaction.reply({
-          content: "تم حفظ إعدادات التقديم ورتب المراجعة والقبول بنجاح.",
+          content: "تم حفظ إعدادات نظام التقديم بنجاح.",
           ephemeral: true
         });
         return true;
@@ -117,27 +143,40 @@ async function handleApplicationInteraction(interaction) {
 
         const channel =
           interaction.options.getChannel("channel") ||
-          (data.channelId
-            ? guild.channels.cache.get(data.channelId)
-            : interaction.channel);
+          (
+            data.channelId
+              ? guild.channels.cache.get(data.channelId)
+              : null
+          ) ||
+          interaction.channel;
 
-        if (!channel || !channel.isTextBased()) {
+        if (!channel || channel.type !== ChannelType.GuildText) {
           await interaction.reply({
-            content: "حدد رومًا كتابيًا صحيحًا.",
+            content: "حدد رومًا كتابيًا صحيحًا لنشر لوحة التقديم.",
             ephemeral: true
           });
           return true;
         }
 
+        saveApplications(guildId, settings => {
+          settings.channelId = channel.id;
+        });
+
         const embed = new EmbedBuilder()
           .setColor("#9b65ff")
           .setTitle("📋 التقديم على الإدارة")
-          .setDescription("اضغط الزر بالأسفل لبدء تقديم طلبك.");
+          .setDescription(
+            "مرحبًا بك في نظام التقديم على الإدارة.\n\n" +
+            "اضغط الزر بالأسفل واملأ جميع الأسئلة بعناية."
+          )
+          .setFooter({ text: "DRO BOT" })
+          .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId("dro_apply_start")
             .setLabel("تقديم طلب")
+            .setEmoji("📝")
             .setStyle(ButtonStyle.Primary)
         );
 
@@ -154,8 +193,15 @@ async function handleApplicationInteraction(interaction) {
       }
 
       if (command === "apply-settings") {
+        const data = getGuild(guildId).applications;
+
         await interaction.reply({
-          content: "إعدادات التقديم محفوظة. استخدم أمر apply-setup لتحديث الرومات والرتب.",
+          content:
+            "إعدادات نظام التقديم الحالية:\n" +
+            `روم اللوحة: ${data.channelId ? `<#${data.channelId}>` : "غير محدد"}\n` +
+            `روم استقبال الطلبات: ${data.reviewChannelId ? `<#${data.reviewChannelId}>` : "غير محدد"}\n` +
+            `رتبة المراجعة: ${data.reviewRoleId ? `<@&${data.reviewRoleId}>` : "الإدارة فقط"}\n` +
+            `رتبة المقبولين: ${data.acceptedRoleId ? `<@&${data.acceptedRoleId}>` : "غير محددة"}`,
           ephemeral: true
         });
         return true;
@@ -166,17 +212,21 @@ async function handleApplicationInteraction(interaction) {
       const customId = interaction.customId;
 
       if (customId === "dro_apply_start") {
+        const data = getGuild(guildId).applications;
+
+        if (!data.reviewChannelId) {
+          await interaction.reply({
+            content: "نظام التقديم غير مكتمل الإعداد. يرجى إبلاغ الإدارة.",
+            ephemeral: true
+          });
+          return true;
+        }
+
+        const questions = applicationQuestions();
+
         const modal = new ModalBuilder()
           .setCustomId("dro_apply_modal")
           .setTitle("نموذج التقديم");
-
-        const questions = [
-          ["name", "ما اسمك؟"],
-          ["age", "كم عمرك؟"],
-          ["experience", "ما خبرتك الإدارية؟"],
-          ["reason", "لماذا تريد الانضمام للإدارة؟"],
-          ["time", "كم ساعة تستطيع التواجد؟"]
-        ];
 
         const fields = questions.map(([id, label]) =>
           new ActionRowBuilder().addComponents(
@@ -190,6 +240,7 @@ async function handleApplicationInteraction(interaction) {
         );
 
         modal.addComponents(...fields);
+
         await interaction.showModal(modal);
         return true;
       }
@@ -227,36 +278,48 @@ async function handleApplicationInteraction(interaction) {
           return true;
         }
 
+        if (accepted && applications.acceptedRoleId) {
+          const target = await guild.members
+            .fetch(submission.userId)
+            .catch(() => null);
+
+          if (!target) {
+            await interaction.reply({
+              content: "تعذر العثور على المتقدم لإعطائه الرتبة. لم يتم قبول الطلب.",
+              ephemeral: true
+            });
+            return true;
+          }
+
+          try {
+            await target.roles.add(
+              applications.acceptedRoleId,
+              "قبول طلب التقديم"
+            );
+          } catch (error) {
+            console.error("Accepted role error:", error);
+
+            await interaction.reply({
+              content: "تعذر إعطاء رتبة القبول. تأكد من صلاحيات البوت وترتيب الرتب.",
+              ephemeral: true
+            });
+            return true;
+          }
+        }
+
         submission.status = accepted ? "accepted" : "rejected";
         submission.reviewedBy = interaction.user.id;
         submission.reviewedAt = Date.now();
 
         saveDatabase(db);
 
-        if (accepted && applications.acceptedRoleId) {
-          const target = await guild.members
-            .fetch(submission.userId)
-            .catch(() => null);
-
-          if (target) {
-            await target.roles.add(applications.acceptedRoleId)
-              .catch(error => {
-                console.error("Accepted role error:", error);
-              });
-          }
-        }
-
-        const applicant = await interaction.client.users
-          .fetch(submission.userId)
-          .catch(() => null);
-
-        if (applicant) {
-          await applicant.send(
-            accepted
-              ? `🎉 تم قبول طلب تقديمك في سيرفر ${guild.name}.`
-              : `نشكرك على تقديمك في سيرفر ${guild.name}، نعتذر عن قبول طلبك هذه المرة.`
-          ).catch(() => {});
-        }
+        await sendPrivateResult(
+          interaction.client,
+          submission.userId,
+          accepted
+            ? `🎉 تم قبول طلب تقديمك في سيرفر ${guild.name}.`
+            : `نشكرك على تقديمك في سيرفر ${guild.name}، نعتذر عن قبول طلبك هذه المرة.`
+        );
 
         await interaction.update({
           content: accepted
@@ -270,14 +333,14 @@ async function handleApplicationInteraction(interaction) {
       }
     }
 
-    if (isApplyModal && interaction.customId === "dro_apply_modal") {
+    if (isApplyModal) {
       const data = getGuild(guildId).applications;
 
       const reviewChannel = data.reviewChannelId
         ? guild.channels.cache.get(data.reviewChannelId)
         : null;
 
-      if (!reviewChannel || !reviewChannel.isTextBased()) {
+      if (!reviewChannel || reviewChannel.type !== ChannelType.GuildText) {
         await interaction.reply({
           content: "روم استقبال الطلبات غير مضبوط. تواصل مع الإدارة.",
           ephemeral: true
@@ -287,25 +350,24 @@ async function handleApplicationInteraction(interaction) {
 
       const id = `${Date.now()}_${interaction.user.id}`;
 
-      const answers = [
-        ["الاسم", interaction.fields.getTextInputValue("name")],
-        ["العمر", interaction.fields.getTextInputValue("age")],
-        ["الخبرة", interaction.fields.getTextInputValue("experience")],
-        ["سبب التقديم", interaction.fields.getTextInputValue("reason")],
-        ["وقت التواجد", interaction.fields.getTextInputValue("time")]
-      ];
+      const answers = applicationQuestions().map(([field, label]) => [
+        label,
+        interaction.fields.getTextInputValue(field)
+      ]);
 
-      saveGuild(guildId, applications => {
+      const submission = {
+        userId: interaction.user.id,
+        status: "pending",
+        answers,
+        createdAt: Date.now()
+      };
+
+      saveApplications(guildId, applications => {
         if (!applications.submissions) {
           applications.submissions = {};
         }
 
-        applications.submissions[id] = {
-          userId: interaction.user.id,
-          status: "pending",
-          answers,
-          createdAt: Date.now()
-        };
+        applications.submissions[id] = submission;
       });
 
       const embed = new EmbedBuilder()
@@ -317,16 +379,19 @@ async function handleApplicationInteraction(interaction) {
             `**${question}:**\n${answer}`
           ).join("\n\n")
         )
+        .setFooter({ text: `رقم الطلب: ${id}` })
         .setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`dro_apply_accept_${id}`)
           .setLabel("قبول")
+          .setEmoji("✅")
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId(`dro_apply_reject_${id}`)
           .setLabel("رفض")
+          .setEmoji("❌")
           .setStyle(ButtonStyle.Danger)
       );
 
